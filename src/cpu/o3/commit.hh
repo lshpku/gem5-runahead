@@ -50,6 +50,7 @@
 #include "cpu/o3/dyn_inst_ptr.hh"
 #include "cpu/o3/iew.hh"
 #include "cpu/o3/limits.hh"
+#include "cpu/o3/pre.hh"
 #include "cpu/o3/rename_map.hh"
 #include "cpu/o3/rob.hh"
 #include "cpu/timebuf.hh"
@@ -139,6 +140,9 @@ class Commit
 
     /** Registers probes. */
     void regProbePoints();
+
+    /** Sets pointer to the stalling slice table. */
+    void setSST(SST *_sst) { sst = _sst; }
 
     /** Sets the list of threads. */
     void setThreads(std::vector<ThreadState *> &threads);
@@ -347,6 +351,9 @@ class Commit
 
     /** Vector of all of the threads. */
     std::vector<ThreadState *> thread;
+
+    /** Pointer to the stalling slice table. */
+    SST *sst;
 
     /** Records that commit has written to the time buffer this cycle. Used for
      * the CPU to determine if it can deschedule itself if there is no activity.
