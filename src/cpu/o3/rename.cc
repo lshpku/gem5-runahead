@@ -1047,6 +1047,15 @@ Rename::renameSrcRegs(const DynInstPtr &inst, ThreadID tid)
                 src_reg.index(), renamed_reg->index(),
                 renamed_reg->className());
 
+        MJ("Rename", "rename src") << " " << inst->toString()
+            << " arch=" << tc->flattenRegId(src_reg).index()
+            << " phys=" << renamed_reg->index()
+            << " srcAddr=0x" << std::hex << renamed_reg->getSrcAddr() << std::dec << std::endl;
+
+        if (inst->isInSST()) {
+            sst->addInst(renamed_reg->getSrcAddr());
+        }
+
         inst->renameSrcReg(src_idx, renamed_reg);
 
         // See if the register is ready or not.
@@ -1086,6 +1095,16 @@ Rename::renameDestRegs(const DynInstPtr &inst, ThreadID tid)
         flat_dest_regid.setNumPinnedWrites(dest_reg.getNumPinnedWrites());
 
         rename_result = map->rename(flat_dest_regid);
+
+        // flat_dest_regid: arch
+        // first:  newly allocated phys
+        // second: old phys
+        MJ("Rename", "rename dest") << " " << inst->toString()
+            << " arch=" << flat_dest_regid.index()
+            << " newPhys=" << rename_result.first->index()
+            << " oldPhys=" << rename_result.second->index() << std::endl;
+
+        rename_result.first->setSrcAddr(inst->pcState().instAddr());
 
         inst->flattenedDestIdx(dest_idx, flat_dest_regid);
 

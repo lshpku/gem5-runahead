@@ -677,6 +677,12 @@ Decode::decodeInsts(ThreadID tid)
             inst->setCanIssue();
         }
 
+        // Check if this instruction is in SST. If so, the instruction
+        // belongs to some load slices.
+        if (sst->hasInst(inst)) {
+            inst->setInSST();
+        }
+
         // This current instruction is valid, so add it into the decode
         // queue.  The next instruction may not be valid, so check to
         // see if branches were predicted correctly.

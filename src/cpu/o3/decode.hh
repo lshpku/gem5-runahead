@@ -47,6 +47,7 @@
 #include "cpu/o3/comm.hh"
 #include "cpu/o3/dyn_inst_ptr.hh"
 #include "cpu/o3/limits.hh"
+#include "cpu/o3/pre.hh"
 #include "cpu/timebuf.hh"
 
 namespace gem5
@@ -121,6 +122,9 @@ class Decode
 
     /** Sets pointer to list of active threads. */
     void setActiveThreads(std::list<ThreadID> *at_ptr);
+
+    /** Sets pointer to the stalling slice table. */
+    void setSST(SST *_sst) { sst = _sst; }
 
     /** Perform sanity checks after a drain. */
     void drainSanityCheck() const;
@@ -293,6 +297,9 @@ class Decode
      *  instruction (used for MIPS).
      */
     bool squashAfterDelaySlot[MaxThreads];
+
+    /** Pointer to the stalling slice table. */
+    SST *sst;
 
     struct DecodeStats : public statistics::Group
     {

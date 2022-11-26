@@ -248,6 +248,7 @@ class PhysRegId : private RegId
     RegIndex flatIdx;
     int numPinnedWritesToComplete;
     bool pinned;
+    Addr srcAddr;
 
   public:
     explicit PhysRegId() : RegId(InvalidRegClass, -1), flatIdx(-1),
@@ -335,6 +336,9 @@ class PhysRegId : private RegId
 
     void decrNumPinnedWritesToComplete() { --numPinnedWritesToComplete; }
     void incrNumPinnedWritesToComplete() { ++numPinnedWritesToComplete; }
+
+    void setSrcAddr(Addr addr) { srcAddr = addr; }
+    Addr getSrcAddr() { return srcAddr; }
 };
 
 using PhysRegIdPtr = PhysRegId*;

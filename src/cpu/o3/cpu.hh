@@ -60,6 +60,7 @@
 #include "cpu/o3/free_list.hh"
 #include "cpu/o3/iew.hh"
 #include "cpu/o3/limits.hh"
+#include "cpu/o3/pre.hh"
 #include "cpu/o3/rename.hh"
 #include "cpu/o3/rob.hh"
 #include "cpu/o3/scoreboard.hh"
@@ -73,6 +74,9 @@
 
 namespace gem5
 {
+
+extern Tick _lastLogTick;
+std::ostream& MJ(const char *stage, const char *event);
 
 template <class>
 class Checker;
@@ -428,6 +432,9 @@ class CPU : public BaseCPU
 
     /** The re-order buffer. */
     ROB rob;
+
+    /** The stalling slice table. */
+    SST sst;
 
     /** Active Threads List */
     std::list<ThreadID> activeThreads;

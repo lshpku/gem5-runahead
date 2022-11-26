@@ -65,6 +65,17 @@
 namespace gem5
 {
 
+Tick _lastLogTick = 0;
+std::ostream& MJ(const char *stage, const char *event)
+{
+    if (curTick() != _lastLogTick) {
+        _lastLogTick = gem5::curTick();
+        std::cout << std::endl;
+    }
+    std::cout << "[" << stage << "] @" << gem5::curTick() / 500 << " " << event;
+    return std::cout;
+}
+
 struct BaseCPUParams;
 
 namespace o3
@@ -97,6 +108,8 @@ CPU::CPU(const BaseO3CPUParams &params)
       freeList(name() + ".freelist", &regFile),
 
       rob(this, params),
+
+      sst(this, params),
 
       scoreboard(name() + ".scoreboard", regFile.totalNumPhysRegs()),
 
@@ -244,6 +257,11 @@ CPU::CPU(const BaseO3CPUParams &params)
 
     // Setup the ROB for whichever stages need it.
     commit.setROB(&rob);
+
+    // Setup PRE utilities
+    decode.setSST(&sst);
+    rename.setSST(&sst);
+    commit.setSST(&sst);
 
     lastActivatedCycle = 0;
 

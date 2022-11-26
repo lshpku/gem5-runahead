@@ -47,6 +47,7 @@
 #include <deque>
 #include <list>
 #include <string>
+#include <sstream>
 
 #include "base/refcnt.hh"
 #include "base/trace.hh"
@@ -168,6 +169,7 @@ class DynInst : public ExecContext, public RefCounted
                                  /// instructions ahead of it
         SerializeAfter,          /// Needs to serialize instructions behind it
         SerializeHandled,        /// Serialization has been handled
+        SstEntry,                /// Instruction is in the SST
         NumStatus
     };
 
@@ -880,6 +882,17 @@ class DynInst : public ExecContext, public RefCounted
         status.set(PinnedRegsSquashDone);
     }
 
+    //PRE Functions
+    //-----------------------
+    /** Sets this instruction as an entry in the SST. */
+    void setInSST() { status.set(SstEntry); }
+
+    /** Sets this instruction as an entry in the ROB. */
+    void clearInSST() { status.reset(SstEntry); }
+
+    /** Returns whether or not this instruction is in the SST. */
+    bool isInSST() const { return status[SstEntry]; }
+
     /** Read the PC state of this instruction. */
     const PCStateBase &
     pcState() const override
@@ -1174,6 +1187,14 @@ class DynInst : public ExecContext, public RefCounted
             return;
         cpu->setReg(reg, val);
         //TODO setResult
+    }
+
+    std::string
+    toString() const
+    {
+        std::stringstream ss;
+        ss << "seqNum=" << seqNum << " pc=" << pcState();
+        return ss.str();
     }
 };
 

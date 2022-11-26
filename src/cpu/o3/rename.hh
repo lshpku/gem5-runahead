@@ -52,6 +52,7 @@
 #include "cpu/o3/free_list.hh"
 #include "cpu/o3/iew.hh"
 #include "cpu/o3/limits.hh"
+#include "cpu/o3/pre.hh"
 #include "cpu/timebuf.hh"
 #include "sim/probe/probe.hh"
 
@@ -177,6 +178,9 @@ class Rename
 
     /** Sets pointer to the scoreboard. */
     void setScoreboard(Scoreboard *_scoreboard);
+
+    /** Sets pointer to the stalling slice table. */
+    void setSST(SST *_sst) { sst = _sst; }
 
     /** Perform sanity checks after a drain. */
     void drainSanityCheck() const;
@@ -364,6 +368,9 @@ class Rename
 
     /** Pointer to the scoreboard. */
     Scoreboard *scoreboard;
+  
+    /** Pointer to the stalling slice table. */
+    SST *sst;
 
     /** Count of instructions in progress that have been sent off to the IQ
      * and ROB, but are not yet included in their occupancy counts.
