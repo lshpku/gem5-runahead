@@ -489,6 +489,12 @@ class IEW
         /** Average number of woken instructions per writeback. */
         statistics::Formula wbFanout;
     } iewStats;
+
+  public:
+    /** Sends a squash signal to Commit. The inst itself is not squashed.
+     *  The Fetch PC should be redirected to the next PC of inst.
+     */
+    void squashDueToPRE(const DynInstPtr &inst);
 };
 
 } // namespace o3

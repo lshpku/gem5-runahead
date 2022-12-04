@@ -170,6 +170,7 @@ class DynInst : public ExecContext, public RefCounted
         SerializeAfter,          /// Needs to serialize instructions behind it
         SerializeHandled,        /// Serialization has been handled
         SstEntry,                /// Instruction is in the SST
+        PreInst,                 /// Is a PRE instruction
         NumStatus
     };
 
@@ -887,11 +888,14 @@ class DynInst : public ExecContext, public RefCounted
     /** Sets this instruction as an entry in the SST. */
     void setInSST() { status.set(SstEntry); }
 
-    /** Sets this instruction as an entry in the ROB. */
-    void clearInSST() { status.reset(SstEntry); }
-
     /** Returns whether or not this instruction is in the SST. */
     bool isInSST() const { return status[SstEntry]; }
+
+    /** Sets this instruction as a PRE instruction. */
+    void setPRE() { status.set(PreInst); }
+
+    /** Returns whether or not this instruction is a PRE instruction. */
+    bool isPRE() const { return status[PreInst]; }
 
     /** Read the PC state of this instruction. */
     const PCStateBase &

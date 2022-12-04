@@ -170,3 +170,7 @@ class BaseO3CPU(BaseCPU):
                                                        Parent.numThreads),
                                        "Branch Predictor")
     needsTSO = Param.Bool(False, "Enable TSO Memory model")
+
+    enablePRE = Param.Bool(False, "Enable Precise Runahead Execution")
+    numPRDQEntries = Param.Unsigned(192, "Number of precise register "
+                                    "deallocation queue entries")

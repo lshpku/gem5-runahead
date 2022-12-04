@@ -65,7 +65,8 @@ Rename::Rename(CPU *_cpu, const BaseO3CPUParams &params)
       commitToRenameDelay(params.commitToRenameDelay),
       renameWidth(params.renameWidth),
       numThreads(params.numThreads),
-      stats(_cpu)
+      stats(_cpu),
+      numPRDQEntries(params.numPRDQEntries)
 {
     if (renameWidth > MaxWidth)
         fatal("renameWidth (%d) is larger than compiled limit (%d),\n"
@@ -337,6 +338,7 @@ Rename::squash(const InstSeqNum &squash_seq_num, ThreadID tid)
 {
     DPRINTF(Rename, "[tid:%i] [squash sn:%llu] Squashing instructions.\n",
         tid,squash_seq_num);
+    MJ("Rename", "begin squashing") << " seqNum=" << squash_seq_num << std::endl;
 
     // Clear the stall signal if rename was blocked or unblocking before.
     // If it still needs to block, the blocking should happen the next
@@ -433,6 +435,42 @@ Rename::tick()
 
             removeFromHistory(fromCommit->commitInfo[tid].doneSeqNum,
                                   tid);
+        }
+    }
+
+    // In PRE, deallocate completed instructions from PRDQ.
+    if (cpu->isInPRE()) {
+        for (unsigned num = renameWidth; num && !prdq.empty(); num--) {
+            DynInstPtr &inst = prdq.front();
+            if (!inst->readyToCommit()) {
+                break;
+            }
+            prdq.pop_front();
+            MJ("Rename", "pre commit") << " " << inst->toString() << std::endl;
+            unsigned num_dest_regs = inst->numDestRegs();
+            for (int idx = 0; idx < num_dest_regs; idx++) {
+                PhysRegIdPtr newPhysReg = inst->renamedDestIdx(idx);
+                PhysRegIdPtr oldPhysReg = inst->prevDestIdx(idx);
+                if (newPhysReg != oldPhysReg) {
+                    freeList->addReg(oldPhysReg);
+                }
+            }
+        }
+    }
+
+    // In PRE, read complete signals of PRE instructions from IEW.
+    // We should read complete signals after PRDQ deallocation, so that a
+    // completed instruction is deallocated no earlier than the next cycle.
+    // This is to resemble the timing of ROB.
+    if (cpu->isInPRE()) {
+        TimeBuffer<IEWStruct>::wire &fromIEW = commit_ptr->getFromIEW();
+        for (int i = 0; i < fromIEW->size; ++i) {
+            DynInstPtr &inst = fromIEW->insts[i];
+            assert(inst);
+            if (inst->isPRE()) {
+                inst->setCanCommit();
+                MJ("Rename", "pre complete") << " " << inst->toString() << std::endl;
+            }
         }
     }
 
@@ -649,6 +687,16 @@ Rename::renameInsts(ThreadID tid)
             continue;
         }
 
+        // In PRE, discard instructions that are not in SST.
+        // Although Decode has filtered instructions once, there may be some
+        // instructions that have entered rename buffer at the beginning of
+        // PRE and not filtered, so we filter them here again.
+        if (cpu->isInPRE() && !inst->isInSST()) {
+            MJ("Rename", "discard") << " " << inst->toString() << std::endl;
+            --insts_available;
+            continue;
+        }
+
         DPRINTF(Rename,
                 "[tid:%i] "
                 "Processing instruction [sn:%llu] with PC %s.\n",
@@ -731,6 +779,12 @@ Rename::renameInsts(ThreadID tid)
 
         // Decrement how many instructions are available.
         --insts_available;
+
+        // In PRE, put instruction in the PRDQ instead of ROB.
+        if (cpu->isInPRE()) {
+            inst->setPRE();
+            prdq.push_back(inst);
+        }
     }
 
     instsInProgress[tid] += renamed_insts;
@@ -925,6 +979,7 @@ Rename::doSquash(const InstSeqNum &squashed_seq_num, ThreadID tid)
                 "number %i (archReg: %d, newPhysReg: %d, prevPhysReg: %d).\n",
                 tid, hb_it->instSeqNum, hb_it->archReg.index(),
                 hb_it->newPhysReg->index(), hb_it->prevPhysReg->index());
+        MJ("Rename", "squash") << " seqNum=" << hb_it->instSeqNum << std::endl;
 
         // Undo the rename mapping only if it was really a change.
         // Special regs that are not really renamed (like misc regs
@@ -988,6 +1043,7 @@ Rename::removeFromHistory(InstSeqNum inst_seq_num, ThreadID tid)
                 tid, hb_it->prevPhysReg->index(),
                 hb_it->prevPhysReg->className(),
                 hb_it->instSeqNum);
+        MJ("Rename", "free") << " seqNum=" << hb_it->instSeqNum << std::endl;
 
         // Don't free special phys regs like misc and zero regs, which
         // can be recognized because the new mapping is the same as
@@ -1122,7 +1178,10 @@ Rename::renameDestRegs(const DynInstPtr &inst, ThreadID tid)
                                rename_result.first,
                                rename_result.second);
 
-        historyBuffer[tid].push_front(hb_entry);
+        // In PRE, do not put instruction into history buffer.
+        if (!cpu->isInPRE()) {
+            historyBuffer[tid].push_front(hb_entry);
+        }
 
         DPRINTF(Rename, "[tid:%i] [sn:%llu] "
                 "Adding instruction to history buffer (size=%i).\n",
@@ -1145,6 +1204,12 @@ Rename::renameDestRegs(const DynInstPtr &inst, ThreadID tid)
 int
 Rename::calcFreeROBEntries(ThreadID tid)
 {
+    // In PRE, there is no buffer between Rename and the PRDQ, so we don't
+    // need to subtract the buffered instructions.
+    if (cpu->isInPRE()) {
+        return calcFreePRDQEntries();
+    }
+
     int num_free = freeEntries[tid].robEntries -
                   (instsInProgress[tid] - fromIEW->iewInfo[tid].dispatched);
 
@@ -1222,18 +1287,26 @@ Rename::checkStall(ThreadID tid)
 
     if (stalls[tid].iew) {
         DPRINTF(Rename,"[tid:%i] Stall from IEW stage detected.\n", tid);
+        MJ("Rename", "block due to iew") << std::endl;
         ret_val = true;
-    } else if (calcFreeROBEntries(tid) <= 0) {
+    } else if (!cpu->isInPRE() && calcFreeROBEntries(tid) <= 0) {
         DPRINTF(Rename,"[tid:%i] Stall: ROB has 0 free entries.\n", tid);
+        MJ("Rename", "block due to rob") << std::endl;
+        ret_val = true;
+    } else if (cpu->isInPRE() && calcFreePRDQEntries() <= 0) {
+        MJ("Rename", "block due to prdq") << std::endl;
         ret_val = true;
     } else if (calcFreeIQEntries(tid) <= 0) {
         DPRINTF(Rename,"[tid:%i] Stall: IQ has 0 free entries.\n", tid);
+        MJ("Rename", "block due to iq") << std::endl;
         ret_val = true;
     } else if (calcFreeLQEntries(tid) <= 0 && calcFreeSQEntries(tid) <= 0) {
         DPRINTF(Rename,"[tid:%i] Stall: LSQ has 0 free entries.\n", tid);
+        MJ("Rename", "block due to lsq") << std::endl;
         ret_val = true;
     } else if (renameMap[tid]->numFreeEntries() <= 0) {
         DPRINTF(Rename,"[tid:%i] Stall: RenameMap has 0 free entries.\n", tid);
+        MJ("Rename", "block due to rename map") << std::endl;
         ret_val = true;
     } else if (renameStatus[tid] == SerializeStall &&
                (!emptyROB[tid] || instsInProgress[tid])) {
@@ -1439,6 +1512,12 @@ Rename::dumpHistory()
             buf_it++;
         }
     }
+}
+
+void
+Rename::flushPRDQ()
+{
+    prdq.clear();
 }
 
 } // namespace o3

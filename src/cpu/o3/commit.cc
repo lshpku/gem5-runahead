@@ -70,10 +70,6 @@
 
 namespace
 {
-std::ostream& commitLog(const char *event)
-{
-    return gem5::MJ("Commit", event);
-}
 const char *_sn[] = {
     "Running",
     "Idle",
@@ -561,7 +557,7 @@ Commit::squashAll(ThreadID tid)
     youngestSeqNum[tid] = lastCommitedSeqNum[tid];
 
     rob->squash(squashed_inst, tid);
-    commitLog("rob squash") << " squashed_inst=" << squashed_inst 
+    MJ("Commit", "rob squash") << " squashed_inst=" << squashed_inst 
         << " doneSquashing=" << rob->isDoneSquashing(tid) << std::endl;
     changedROBNumEntries[tid] = true;
 
@@ -664,21 +660,21 @@ Commit::tick()
         // this cycle.
         committedStores[tid] = false;
 
-        commitLog("tick") << " commitStatus=" << _sn[commitStatus[tid]] << std::endl;
+        MJ("Commit", "tick") << " commitStatus=" << _sn[commitStatus[tid]] << std::endl;
 
         if (commitStatus[tid] == ROBSquashing) {
 
             if (rob->isDoneSquashing(tid)) {
-                commitLog("done squashing") << std::endl;
+                MJ("Commit", "done squashing") << std::endl;
                 commitStatus[tid] = Running;
             } else {
-                commitLog("still squashing") << std::endl;
+                MJ("Commit", "still squashing") << std::endl;
                 DPRINTF(Commit,"[tid:%i] Still Squashing, cannot commit any"
                         " insts this cycle.\n", tid);
                 rob->doSquash(tid);
                 toIEW->commitInfo[tid].robSquashing = true;
                 wroteToTimeBuffer = true;
-                commitLog("rob doSquash") << " doneSquashing=" << rob->isDoneSquashing(tid) << std::endl;
+                MJ("Commit", "rob doSquash") << " doneSquashing=" << rob->isDoneSquashing(tid) << std::endl;
             }
         }
     }
@@ -724,6 +720,41 @@ Commit::tick()
     }
 
     updateStatus();
+
+    // Enter PRE when a load instruction causes a full-window stall.
+    if (toIEW->commitInfo[0].usedROB &&
+        toIEW->commitInfo[0].freeROBEntries == 0) {
+
+        MJ("Commit", "rob full") << " " << rob->readHeadInst(0)->toString() << std::endl;
+
+        // Only in running mode could we enter PRE.
+        if (commitStatus[0] == Running &&
+            cpu->isPREEnabled() && !cpu->isInPRE()) {
+            auto &stallInst = rob->readHeadInst(0);
+
+            // Make sure the stalling load is still blocking.
+            if (stallInst->isLoad() && !stallInst->readyToCommit()) {
+                sst->addInst(stallInst);
+                cpu->enterPRE();
+            }
+        }
+
+        // Exit PRE when there is an exception.
+        // In this case, all PRE instructions in the pipeline are flushed
+        // naturally, as they are younger than the instruction that caused
+        // the exception. We just need to restore the RAT.
+        if (commitStatus[0] == ROBSquashing && cpu->isInPRE()) {
+            cpu->exitPRE();
+        }
+    }
+
+    // Exit PRE when the stalling load returns.
+    // In addition to restoring the RAT, we need to trigger a squash event
+    // to flush all PRE instructions in the pipeline.
+    if (cpu->isInPRE() && rob->readHeadInst(0)->readyToCommit()) {
+        cpu->exitPRE();
+        iewStage->squashDueToPRE(rob->readTailInst(0));
+    }
 }
 
 void
@@ -764,7 +795,7 @@ Commit::handleInterrupt()
         thread[0]->noSquashFromTC = false;
 
         commitStatus[0] = TrapPending;
-        commitLog("handle interrupt") << std::endl;
+        MJ("Commit", "handle interrupt") << std::endl;
 
         interrupt = NoFault;
 
@@ -777,7 +808,7 @@ Commit::handleInterrupt()
                 "flight, ROB is %sempty\n",
                 canHandleInterrupts ? "not " : "",
                 cpu->instList.empty() ? "" : "not " );
-        commitLog("handle interrupt pending") << std::endl;
+        MJ("Commit", "handle interrupt pending") << std::endl;
     }
 }
 
@@ -828,7 +859,7 @@ Commit::commit()
         // Not sure which one takes priority.  I think if we have
         // both, that's a bad sign.
         if (trapSquash[tid]) {
-            commitLog("squash from Trap") << std::endl;
+            MJ("Commit", "squash from Trap") << std::endl;
             assert(!tcSquash[tid]);
             squashFromTrap(tid);
 
@@ -839,11 +870,11 @@ Commit::commit()
             if (cpu->isThreadExiting(tid))
                 cpu->scheduleThreadExitEvent(tid);
         } else if (tcSquash[tid]) {
-            commitLog("squash from TC") << std::endl;
+            MJ("Commit", "squash from TC") << std::endl;
             assert(commitStatus[tid] != TrapPending);
             squashFromTC(tid);
         } else if (commitStatus[tid] == SquashAfterPending) {
-            commitLog("squash from squashAfter") << std::endl;
+            MJ("Commit", "squash from squashAfter") << std::endl;
             // A squash from the previous cycle of the commit stage (i.e.,
             // commitInsts() called squashAfter) is pending. Squash the
             // thread now.
@@ -858,25 +889,28 @@ Commit::commit()
             fromIEW->squashedSeqNum[tid] <= youngestSeqNum[tid]) {
 
             if (fromIEW->mispredictInst[tid]) {
-                commitLog("squash from IEW branch mispred")
-                    << " seqNum=" << fromIEW->squashedSeqNum[tid]
-                    << " pc=" << fromIEW->mispredictInst[tid]->pcState() << std::endl;
+                MJ("Commit", "squash due to branch mispred") << " "
+                    << fromIEW->mispredictInst[tid]->toString() << std::endl;
                 DPRINTF(Commit,
                     "[tid:%i] Squashing due to branch mispred "
                     "PC:%#x [sn:%llu]\n",
                     tid,
                     fromIEW->mispredictInst[tid]->pcState().instAddr(),
                     fromIEW->squashedSeqNum[tid]);
-            } else {
-                commitLog("squash from IEW order violation")
-                    << " seqNum=" << fromIEW->squashedSeqNum[tid] << std::endl;
+            } else if (fromIEW->includeSquashInst[tid]) {
+                MJ("Commit", "squash due to order violation") << " seqNum="
+                    << fromIEW->squashedSeqNum[tid] << std::endl;
                 DPRINTF(Commit,
                     "[tid:%i] Squashing due to order violation [sn:%llu]\n",
                     tid, fromIEW->squashedSeqNum[tid]);
+            } else {
+                MJ("Commit", "squash due to pre") << " seqNum="
+                    << fromIEW->squashedSeqNum[tid] << std::endl;
             }
 
             DPRINTF(Commit, "[tid:%i] Redirecting to PC %#x\n",
                     tid, *fromIEW->pc[tid]);
+            MJ("Commit", "redirect to") << " pc=" << *fromIEW->pc[tid] << std::endl;
 
             commitStatus[tid] = ROBSquashing;
 
@@ -893,7 +927,7 @@ Commit::commit()
             youngestSeqNum[tid] = squashed_inst;
 
             rob->squash(squashed_inst, tid);
-            commitLog("rob squash") << " squashed_inst=" << squashed_inst 
+            MJ("Commit", "rob squash") << " squashed_inst=" << squashed_inst 
                 << " doneSquashing=" << rob->isDoneSquashing(tid) << std::endl;
 
             changedROBNumEntries[tid] = true;
@@ -944,31 +978,14 @@ Commit::commit()
     //Check for any activity
     threads = activeThreads->begin();
 
-    static bool lastROBFull = false;
-    static Tick lastFullTick = 0;
-
     while (threads != end) {
         ThreadID tid = *threads++;
 
         if (changedROBNumEntries[tid]) {
             toIEW->commitInfo[tid].usedROB = true;
             toIEW->commitInfo[tid].freeROBEntries = rob->numFreeEntries(tid);
-            commitLog("rob changed") << " freeEntries=" << toIEW->commitInfo[tid].freeROBEntries << std::endl; 
 
-            if (toIEW->commitInfo[tid].freeROBEntries == 0 && !lastROBFull) {
-                lastROBFull = true;
-                lastFullTick = curTick();
-                commitLog("rob full enter") << " " << rob->readHeadInst(tid)->toString() << std::endl;
-            } else if (toIEW->commitInfo[tid].freeROBEntries && lastROBFull) {
-                lastROBFull = false;
-                Tick duration = curTick() - lastFullTick;
-                commitLog("rob full exit") << " duration=" << duration / 500 << std::endl;
-            }
-
-            // Add the stalling instruction to the SST.
-            if (toIEW->commitInfo[tid].freeROBEntries == 0) {
-                sst->addInst(rob->readHeadInst(tid));
-            }
+            MJ("Commit", "rob changed") << " numFreeEntries=" << toIEW->commitInfo[tid].freeROBEntries << std::endl;
 
             wroteToTimeBuffer = true;
             changedROBNumEntries[tid] = false;
@@ -1055,7 +1072,7 @@ Commit::commitInsts()
         // If the head instruction is squashed, it is ready to retire
         // (be removed from the ROB) at any time.
         if (head_inst->isSquashed()) {
-            commitLog("commit squashed") << " " << head_inst->toString() << std::endl;
+            MJ("Commit", "commit squashed") << " " << head_inst->toString() << std::endl;
 
             DPRINTF(Commit, "Retiring squashed instruction from "
                     "ROB.\n");
@@ -1075,7 +1092,7 @@ Commit::commitInsts()
             bool commit_success = commitHead(head_inst, num_committed);
 
             if (commit_success) {
-                commitLog("commit success") << " " << head_inst->toString() << std::endl;
+                MJ("Commit", "commit success") << " " << head_inst->toString() << std::endl;
                 ++num_committed;
                 stats.committedInstType[tid][head_inst->opClass()]++;
                 ppCommit->notify(head_inst);
@@ -1181,7 +1198,7 @@ Commit::commitInsts()
                     onInstBoundary && cpu->checkInterrupts(0))
                     squashAfter(tid, head_inst);
             } else {
-                commitLog("commit failed") << " " << head_inst->toString() << std::endl;
+                MJ("Commit", "commit failed") << " " << head_inst->toString() << std::endl;
                 DPRINTF(Commit, "Unable to commit head instruction PC:%s "
                         "[tid:%i] [sn:%llu].\n",
                         head_inst->pcState(), tid ,head_inst->seqNum);
@@ -1226,10 +1243,10 @@ Commit::commitHead(const DynInstPtr &head_inst, unsigned inst_num)
                     "[tid:%i] [sn:%llu] "
                     "Waiting for all stores to writeback.\n",
                     tid, head_inst->seqNum);
-            commitLog("inst not executed waiting for store") << std::endl;
+            MJ("Commit", "inst not executed waiting for store") << std::endl;
             return false;
         }
-        commitLog("inst not executed") << std::endl;
+        MJ("Commit", "inst not executed") << std::endl;
 
         toIEW->commitInfo[tid].nonSpecSeqNum = head_inst->seqNum;
 
@@ -1284,10 +1301,10 @@ Commit::commitHead(const DynInstPtr &head_inst, unsigned inst_num)
                     "[tid:%i] [sn:%llu] "
                     "Stores outstanding, fault must wait.\n",
                     tid, head_inst->seqNum);
-            commitLog("inst fault waiting for store") << std::endl;
+            MJ("Commit", "inst fault waiting for store") << std::endl;
             return false;
         }
-        commitLog("inst fault") << std::endl;
+        MJ("Commit", "inst fault") << std::endl;
 
         head_inst->setCompleted();
 
@@ -1400,14 +1417,16 @@ Commit::getInsts()
         const DynInstPtr &inst = fromRename->insts[inst_num];
         ThreadID tid = inst->threadNumber;
 
-        if (!inst->isSquashed() &&
+        if (cpu->isInPRE()) {
+            // In PRE, ignore any instructions from Rename.
+        } else if (!inst->isSquashed() &&
             commitStatus[tid] != ROBSquashing &&
             commitStatus[tid] != TrapPending) {
             changedROBNumEntries[tid] = true;
 
             DPRINTF(Commit, "[tid:%i] [sn:%llu] Inserting PC %s into ROB.\n",
                     tid, inst->seqNum, inst->pcState());
-            commitLog("get inst") << " " << inst->toString() << std::endl;
+            MJ("Commit", "get inst") << " " << inst->toString() << std::endl;
 
             rob->insertInst(inst);
 
@@ -1418,7 +1437,7 @@ Commit::getInsts()
             DPRINTF(Commit, "[tid:%i] [sn:%llu] "
                     "Instruction PC %s was squashed, skipping.\n",
                     tid, inst->seqNum, inst->pcState());
-            commitLog("get inst squashed") << " " << inst->toString() << std::endl;
+            MJ("Commit", "get inst squashed") << " " << inst->toString() << std::endl;
         }
     }
 }
@@ -1439,9 +1458,9 @@ Commit::markCompletedInsts()
 
             // Mark the instruction as ready to commit.
             fromIEW->insts[inst_num]->setCanCommit();
-            commitLog("complete") << " " << fromIEW->insts[inst_num]->toString() << std::endl;
+            MJ("Commit", "complete") << " " << fromIEW->insts[inst_num]->toString() << std::endl;
         } else {
-            commitLog("complete squashed") << " " << fromIEW->insts[inst_num]->toString() << std::endl;
+            MJ("Commit", "complete squashed") << " " << fromIEW->insts[inst_num]->toString() << std::endl;
         }
     }
 }

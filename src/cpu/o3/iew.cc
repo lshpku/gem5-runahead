@@ -501,6 +501,33 @@ IEW::squashDueToMemOrder(const DynInstPtr& inst, ThreadID tid)
 }
 
 void
+IEW::squashDueToPRE(const DynInstPtr& inst)
+{
+    ThreadID tid = 0;
+    MJ("IEW", "squash due to pre") << " " << inst->toString() << std::endl;
+
+    // If there has been a squash event this cycle, don't trigger a new one.
+    // That event will flush the pipeline properly.
+    if (!toCommit->squash[tid] ||
+        inst->seqNum < toCommit->squashedSeqNum[tid]) {
+        toCommit->squash[tid] = true;
+        toCommit->squashedSeqNum[tid] = inst->seqNum;
+
+        // For control instructions, use the predicted target as the next PC,
+        // as the real target may not have been computed.
+        if (inst->isControl()) {
+            set(toCommit->pc[tid], inst->readPredTarg());
+        } else {
+            set(toCommit->pc[tid], inst->pcState());
+            inst->staticInst->advancePC(*toCommit->pc[tid]);
+        }
+
+        toCommit->mispredictInst[tid] = NULL;
+        toCommit->includeSquashInst[tid] = false;
+    }
+}
+
+void
 IEW::block(ThreadID tid)
 {
     DPRINTF(IEW, "[tid:%i] Blocking.\n", tid);

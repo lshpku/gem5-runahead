@@ -127,7 +127,9 @@ CPU::CPU(const BaseO3CPUParams &params)
       globalSeqNum(1),
       system(params.system),
       lastRunningCycle(curCycle()),
-      cpuStats(this)
+      cpuStats(this),
+      enablePRE(params.enablePRE),
+      inPRE(false)
 {
     fatal_if(FullSystem && params.numThreads > 1,
             "SMT is not supported in O3 in full system mode currently.");
@@ -216,6 +218,10 @@ CPU::CPU(const BaseO3CPUParams &params)
             numThreads * regClasses.at(VecPredRegClass).numRegs());
     assert(params.numPhysCCRegs >=
             numThreads * regClasses.at(CCRegClass).numRegs());
+
+    if (numThreads > 1 && enablePRE) {
+        fatal("PRE supports single thread only.\n");
+    }
 
     // Just make this a warning and go ahead anyway, to keep from having to
     // add checks everywhere.
@@ -1574,6 +1580,79 @@ CPU::htmSendAbortSignal(ThreadID tid, uint64_t htm_uid,
     if (!iew.ldstQueue.getDataPort().sendTimingReq(abort_pkt)) {
         panic("HTM abort signal was not sent to the memory subsystem.");
     }
+}
+
+void
+CPU::enterPRE()
+{
+    // Checkpoint the youngest instruction in ROB. We will resume normal
+    // execution right after this instruction.
+    robTailInst = rob.readTailInst(0);
+    MJ("CPU", "enter pre") << " " << robTailInst->toString() << std::endl;
+
+    const auto &regClasses = isa[0]->regClasses();
+
+    for (auto type = (RegClassType)0; type <= CCRegClass;
+            type = (RegClassType)(type + 1)) {
+        
+        // Checkpoint the rename map.
+        for (RegIndex ridx = 0; ridx < regClasses.at(type).numRegs();
+                ++ridx) {
+            RegId rid = RegId(type, ridx);
+            PhysRegIdPtr phys_reg = renameMap[0].lookup(rid);
+            checkpointRenameMap[type].push_back(phys_reg);
+        }
+
+        // Checkpoint the free list.
+        for (unsigned num = freeList.numFreeRegs(type); num; num--) {
+            PhysRegIdPtr phys_reg = freeList.getReg(type);
+            freeList.addReg(phys_reg);
+            checkpointFreeList[type].push_back(phys_reg);
+        }
+    }
+
+    inPRE = true;
+}
+
+void
+CPU::exitPRE()
+{
+    // Restore the PC.
+    std::unique_ptr<PCStateBase> next_pc(robTailInst->pcState().clone());
+    robTailInst->staticInst->advancePC(*next_pc);
+    MJ("CPU", "exit pre") << " pc=0x" << std::hex << next_pc->instAddr() << std::dec << std::endl;
+
+    const auto &regClasses = isa[0]->regClasses();
+
+    for (auto type = (RegClassType)0; type <= CCRegClass;
+            type = (RegClassType)(type + 1)) {
+        
+        // Restore the rename map.
+        for (RegIndex ridx = 0; ridx < regClasses.at(type).numRegs();
+                ++ridx) {
+            RegId rid = RegId(type, ridx);
+            PhysRegIdPtr phys_reg = checkpointRenameMap[type].at(ridx);
+            renameMap[0].setEntry(rid, phys_reg);
+        }
+
+        // Restore the free list.
+        for (auto num = freeList.numFreeRegs(type); num; num--) {
+            freeList.getReg(type);
+        }
+        for (auto phys_reg : checkpointFreeList[type]) {
+            freeList.addReg(phys_reg);
+        }
+
+        // Invalidate the checkpoint.
+        checkpointRenameMap[type].clear();
+        checkpointFreeList[type].clear();
+    }
+
+    // Flush the PRDQ.
+    rename.flushPRDQ();
+
+    //robTailInst = NULL;
+    inPRE = false;
 }
 
 } // namespace o3

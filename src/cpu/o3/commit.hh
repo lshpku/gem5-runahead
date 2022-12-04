@@ -514,6 +514,10 @@ class Commit
         /** Number of cycles where the commit bandwidth limit is reached. */
         statistics::Scalar commitEligibleSamples;
     } stats;
+
+  public:
+    /** Gets the Commit-side port of the IEW queue. */
+    TimeBuffer<IEWStruct>::wire &getFromIEW() { return fromIEW; }
 };
 
 } // namespace o3

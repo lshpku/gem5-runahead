@@ -627,6 +627,37 @@ class CPU : public BaseCPU
     // hardware transactional memory
     void htmSendAbortSignal(ThreadID tid, uint64_t htm_uid,
                             HtmFailureFaultCause cause) override;
+  
+  public:
+    /** Call this function when ROB encounters a full-window stall. The CPU
+     *  will enter PRE at the next cycle if PRE is enabled.
+     */
+    void enterPRE();
+
+    /** Call this method when the stalling load returns. The CPU will trigger
+     *  an exception that helps exiting PRE at the next cycle.
+     */
+    void exitPRE();
+
+    /** Returns whether PRE is enabled. */
+    bool isPREEnabled() const { return enablePRE; }
+
+    /** Returns whether the CPU is in PRE. */
+    bool isInPRE() const { return inPRE; };
+  
+  private:
+    /** Whether PRE is enabled. */
+    bool enablePRE;
+
+    /** Whether the CPU is in PRE. */
+    bool inPRE;
+
+    /** The tail instruction in ROB when entering PRE. */
+    DynInstPtr robTailInst;
+
+    /** Checkpoints of the rename map when entering PRE. */
+    std::vector<PhysRegIdPtr> checkpointRenameMap[CCRegClass + 1];
+    std::vector<PhysRegIdPtr> checkpointFreeList[CCRegClass + 1];
 };
 
 } // namespace o3

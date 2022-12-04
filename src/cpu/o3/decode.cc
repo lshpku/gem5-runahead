@@ -669,18 +669,24 @@ Decode::decodeInsts(ThreadID tid)
             continue;
         }
 
+        // Check and mark if this instruction is in SST.
+        // In PRE, discard instructions that are not in SST.
+        bool inSST = sst->hasInst(inst);
+        if (cpu->isInPRE() && !inSST) {
+            MJ("Decode", "discard") << " " << inst->toString() << std::endl;
+            --insts_available;
+            continue;
+        }
+        if (inSST) {
+            inst->setInSST();
+        }
+
         // Also check if instructions have no source registers.  Mark
         // them as ready to issue at any time.  Not sure if this check
         // should exist here or at a later stage; however it doesn't matter
         // too much for function correctness.
         if (inst->numSrcRegs() == 0) {
             inst->setCanIssue();
-        }
-
-        // Check if this instruction is in SST. If so, the instruction
-        // belongs to some load slices.
-        if (sst->hasInst(inst)) {
-            inst->setInSST();
         }
 
         // This current instruction is valid, so add it into the decode

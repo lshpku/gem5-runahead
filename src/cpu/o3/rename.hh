@@ -179,9 +179,6 @@ class Rename
     /** Sets pointer to the scoreboard. */
     void setScoreboard(Scoreboard *_scoreboard);
 
-    /** Sets pointer to the stalling slice table. */
-    void setSST(SST *_sst) { sst = _sst; }
-
     /** Perform sanity checks after a drain. */
     void drainSanityCheck() const;
 
@@ -368,9 +365,6 @@ class Rename
 
     /** Pointer to the scoreboard. */
     Scoreboard *scoreboard;
-  
-    /** Pointer to the stalling slice table. */
-    SST *sst;
 
     /** Count of instructions in progress that have been sent off to the IQ
      * and ROB, but are not yet included in their occupancy counts.
@@ -540,6 +534,29 @@ class Rename
         /** Number of instructions inserted into skid buffers. */
         statistics::Scalar skidInsts;
     } stats;
+
+  public:
+    /** Sets pointer to the stalling slice table. */
+    void setSST(SST *_sst) { sst = _sst; }
+
+    /** Flushes the PRDQ on PRE exit. */
+    void flushPRDQ();
+
+  private:
+    /** Pointer to the stalling slice table. */
+    SST *sst;
+
+    /** The precise register deallocation queue, used to free old physical
+     *  registers in PRE. In contrast to historyBuffer, PRDQ is a single-
+     *  ended queue, since there is no rollback in PRE.
+     */
+    std::list<DynInstPtr> prdq;
+
+    /** Number of entries in the PRDQ. */
+    unsigned numPRDQEntries;
+
+    /** Calculates the number of free PRDQ entries. */
+    int calcFreePRDQEntries() { return numPRDQEntries - prdq.size(); }
 };
 
 } // namespace o3
