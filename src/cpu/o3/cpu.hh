@@ -72,11 +72,33 @@
 #include "params/BaseO3CPU.hh"
 #include "sim/process.hh"
 
+namespace gem5 { class MJ; }
+namespace std { inline void endl(gem5::MJ &o) {} }
+
 namespace gem5
 {
 
-extern Tick _lastLogTick;
-std::ostream& MJ(const char *stage, const char *event);
+class MJ
+{
+  public:
+    static bool enable;
+    static Tick lastTick;
+    MJ(const char *stage, const char *event);
+    void operator<<(void (*f)(MJ &))
+    {
+        if (enable) {
+            std::cout << std::endl;
+        }
+    }
+    template <typename T>
+    MJ &operator<<(const T &v)
+    {
+        if (enable) {
+            std::cout << v;
+        }
+        return *this;
+    }
+};
 
 template <class>
 class Checker;

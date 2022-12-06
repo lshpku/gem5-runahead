@@ -1189,6 +1189,7 @@ IEW::executeInsts()
 
         DPRINTF(IEW, "Execute: Processing PC %s, [tid:%i] [sn:%llu].\n",
                 inst->pcState(), inst->threadNumber,inst->seqNum);
+        MJ("IEW", "execute") << " " << inst << std::endl;
 
         // Notify potential listeners that this instruction has started
         // executing

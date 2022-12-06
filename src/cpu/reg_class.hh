@@ -248,7 +248,6 @@ class PhysRegId : private RegId
     RegIndex flatIdx;
     int numPinnedWritesToComplete;
     bool pinned;
-    Addr srcAddr;
 
   public:
     explicit PhysRegId() : RegId(InvalidRegClass, -1), flatIdx(-1),
@@ -337,8 +336,21 @@ class PhysRegId : private RegId
     void decrNumPinnedWritesToComplete() { --numPinnedWritesToComplete; }
     void incrNumPinnedWritesToComplete() { ++numPinnedWritesToComplete; }
 
+  private:
+    /** Address of the instruction that defines this register. */
+    Addr srcAddr;
+
+    /** Whether this register is usable for PRE, i.e., it's in the free list
+     *  when entering PRE.
+     */
+    bool usableForPRE;
+
+  public:
     void setSrcAddr(Addr addr) { srcAddr = addr; }
-    Addr getSrcAddr() { return srcAddr; }
+    Addr getSrcAddr() const { return srcAddr; }
+
+    void setUsableForPRE(bool value) { usableForPRE = value; }
+    bool isUsableForPRE() const { return usableForPRE; }
 };
 
 using PhysRegIdPtr = PhysRegId*;

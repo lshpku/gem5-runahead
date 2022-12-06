@@ -65,15 +65,17 @@
 namespace gem5
 {
 
-Tick _lastLogTick = 0;
-std::ostream& MJ(const char *stage, const char *event)
+bool MJ::enable;
+Tick MJ::lastTick;
+MJ::MJ(const char *stage, const char *event)
 {
-    if (curTick() != _lastLogTick) {
-        _lastLogTick = gem5::curTick();
+    if (!enable)
+        return;
+    if (curTick() != lastTick) {
+        lastTick = curTick();
         std::cout << std::endl;
     }
-    std::cout << "[" << stage << "] @" << gem5::curTick() / 500 << " " << event;
-    return std::cout;
+    std::cout << "[" << stage << "] @" << curTick() / 500 << " " << event;
 }
 
 struct BaseCPUParams;
@@ -323,6 +325,10 @@ CPU::CPU(const BaseO3CPUParams &params)
         fatal("O3CPU %s has no interrupt controller.\n"
               "Ensure createInterruptController() is called.\n", name());
     }
+
+    // Initiate my journal.
+    MJ::enable = params.enableMJ;
+    MJ::lastTick = 0;
 }
 
 void
@@ -1594,12 +1600,16 @@ CPU::enterPRE()
 
     for (auto type = (RegClassType)0; type <= CCRegClass;
             type = (RegClassType)(type + 1)) {
-        
+        // Clear the usableForPRE bit of registers and only mark those that
+        // are in the free list. Only registers that are free when entering
+        // PRE can be allocated as destination register during PRE.
+
         // Checkpoint the rename map.
         for (RegIndex ridx = 0; ridx < regClasses.at(type).numRegs();
                 ++ridx) {
             RegId rid = RegId(type, ridx);
             PhysRegIdPtr phys_reg = renameMap[0].lookup(rid);
+            phys_reg->setUsableForPRE(false);
             checkpointRenameMap[type].push_back(phys_reg);
         }
 
@@ -1607,6 +1617,7 @@ CPU::enterPRE()
         for (unsigned num = freeList.numFreeRegs(type); num; num--) {
             PhysRegIdPtr phys_reg = freeList.getReg(type);
             freeList.addReg(phys_reg);
+            phys_reg->setUsableForPRE(true);
             checkpointFreeList[type].push_back(phys_reg);
         }
     }

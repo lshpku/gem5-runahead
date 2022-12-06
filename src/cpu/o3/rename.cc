@@ -451,7 +451,10 @@ Rename::tick()
             for (int idx = 0; idx < num_dest_regs; idx++) {
                 PhysRegIdPtr newPhysReg = inst->renamedDestIdx(idx);
                 PhysRegIdPtr oldPhysReg = inst->prevDestIdx(idx);
-                if (newPhysReg != oldPhysReg) {
+                // Do not recycle registers that are not usable for PRE. These
+                // registers have not been overwritten in the architectural
+                // state.
+                if (oldPhysReg->isUsableForPRE() && newPhysReg != oldPhysReg) {
                     freeList->addReg(oldPhysReg);
                 }
             }
@@ -1106,7 +1109,8 @@ Rename::renameSrcRegs(const DynInstPtr &inst, ThreadID tid)
         MJ("Rename", "rename src") << " " << inst->toString()
             << " arch=" << tc->flattenRegId(src_reg).index()
             << " phys=" << renamed_reg->index()
-            << " srcAddr=0x" << std::hex << renamed_reg->getSrcAddr() << std::dec << std::endl;
+            << " srcAddr=0x" << std::hex << renamed_reg->getSrcAddr() << std::dec
+            << " ready=" << scoreboard->getReg(renamed_reg) << std::endl;
 
         if (inst->isInSST()) {
             sst->addInst(renamed_reg->getSrcAddr());
