@@ -586,6 +586,7 @@ Rename::renameInsts(ThreadID tid)
                 "ROB has %i free entries.\n"
                 "IQ has %i free entries.\n",
                 tid, free_rob_entries, free_iq_entries);
+        MJ("Rename", "stop due to ") << (source == ROB ? "rob" : "iq") << std::endl;
 
         blockThisCycle = true;
 
@@ -651,6 +652,7 @@ Rename::renameInsts(ThreadID tid)
             if (calcFreeLQEntries(tid) <= 0) {
                 DPRINTF(Rename, "[tid:%i] Cannot rename due to no free LQ\n",
                         tid);
+                MJ("Rename", "stop due to lq") << std::endl;
                 source = LQ;
                 incrFullStat(source);
                 break;
@@ -661,6 +663,7 @@ Rename::renameInsts(ThreadID tid)
             if (calcFreeSQEntries(tid) <= 0) {
                 DPRINTF(Rename, "[tid:%i] Cannot rename due to no free SQ\n",
                         tid);
+                MJ("Rename", "stop due to sq") << std::endl;
                 source = SQ;
                 incrFullStat(source);
                 break;
@@ -711,6 +714,7 @@ Rename::renameInsts(ThreadID tid)
             DPRINTF(Rename,
                     "Blocking due to "
                     " lack of free physical registers to rename to.\n");
+            MJ("Rename", "stop due to rename map") << std::endl;
             blockThisCycle = true;
             insts_to_rename.push_front(inst);
             ++stats.fullRegistersEvents;
@@ -756,6 +760,16 @@ Rename::renameInsts(ThreadID tid)
             inst->setSerializeHandled();
 
             serializeAfter(insts_to_rename, tid);
+        }
+
+        if (inst->isAtomic() || inst->isStore()) {
+            int iewSQ = freeEntries[tid].sqEntries;
+            int inProg = storesInProgress[tid];
+            int iewDisp = fromIEW->iewInfo[tid].dispatchedToSQ;
+            int numFree = iewSQ - inProg + iewDisp;
+            MJ("Rename", "rename store") << " seqNum=" << inst->seqNum
+                << " iewSQ=" << iewSQ << " inProg=" << inProg
+                << " iewDisp=" << iewDisp << " numFree=" << numFree << std::endl;
         }
 
         renameSrcRegs(inst, inst->threadNumber);

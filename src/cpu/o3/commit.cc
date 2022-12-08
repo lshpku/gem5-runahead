@@ -744,6 +744,7 @@ Commit::tick()
         // naturally, as they are younger than the instruction that caused
         // the exception. We just need to restore the RAT.
         if (commitStatus[0] == ROBSquashing && cpu->isInPRE()) {
+            MJ("Commit", "exit pre exception") << std::endl;
             cpu->exitPRE();
         }
     }
@@ -753,7 +754,29 @@ Commit::tick()
     // to flush all PRE instructions in the pipeline.
     if (cpu->isInPRE() && rob->readHeadInst(0)->readyToCommit()) {
         cpu->exitPRE();
-        iewStage->squashDueToPRE(rob->readTailInst(0));
+
+        // Find the last instruction in ROB that has been dispatched and
+        // squash after it.
+        // Note: we cannot send squash to a non-dispatched instruction, since
+        // this would flush all non-dispatched instructions, even though some
+        // of them have entered ROB and should not be flushed.
+        std::vector<DynInstPtr> disp;
+        iewStage->readDispatchBuffer(disp);
+
+        auto it = rob->tail;
+        assert(*it == rob->readTailInst(0));
+        while (true) {
+            auto res = std::find(disp.begin(), disp.end(), *it);
+            if (res == disp.end()) {
+                break;
+            }
+            MJ("Commit", "exit pre skip") << " " << (*it)->toString() << std::endl;
+            assert(it != rob->head);
+            --it;
+        }
+
+        MJ("Commit", "exit pre complete") << " " << (*it)->toString() << std::endl;
+        iewStage->squashDueToPRE(*it);
     }
 }
 

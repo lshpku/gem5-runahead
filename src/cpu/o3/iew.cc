@@ -944,6 +944,7 @@ IEW::dispatchInsts(ThreadID tid)
         if (inst->isSquashed()) {
             DPRINTF(IEW, "[tid:%i] Issue: Squashed instruction encountered, "
                     "not adding to IQ.\n", tid);
+            MJ("IEW", "dispatch squashed") << " " << inst->toString() << std::endl;
 
             ++iewStats.dispSquashedInsts;
 
@@ -965,6 +966,7 @@ IEW::dispatchInsts(ThreadID tid)
         // Check for full conditions.
         if (instQueue.isFull(tid)) {
             DPRINTF(IEW, "[tid:%i] Issue: IQ has become full.\n", tid);
+            MJ("IEW", "dispatch iq full") << " " << inst->toString() << std::endl;
 
             // Call function to start blocking.
             block(tid);
@@ -984,6 +986,8 @@ IEW::dispatchInsts(ThreadID tid)
             (inst->isStore() && ldstQueue.sqFull(tid))) {
             DPRINTF(IEW, "[tid:%i] Issue: %s has become full.\n",tid,
                     inst->isLoad() ? "LQ" : "SQ");
+            MJ("IEW", "dispatch ") << (inst->isLoad() ? "lq" : "sq") << " full "
+                << inst->toString() << std::endl;
 
             // Call function to start blocking.
             block(tid);
@@ -1010,6 +1014,7 @@ IEW::dispatchInsts(ThreadID tid)
             inst->clearHtmTransactionalState();
         }
 
+        MJ("IEW", "dispatch success") << " " << inst->toString() << std::endl;
 
         // Otherwise issue the instruction just fine.
         if (inst->isAtomic()) {
@@ -1189,7 +1194,7 @@ IEW::executeInsts()
 
         DPRINTF(IEW, "Execute: Processing PC %s, [tid:%i] [sn:%llu].\n",
                 inst->pcState(), inst->threadNumber,inst->seqNum);
-        MJ("IEW", "execute") << " " << inst << std::endl;
+        MJ("IEW", "execute") << " " << inst->toString() << std::endl;
 
         // Notify potential listeners that this instruction has started
         // executing
@@ -1565,6 +1570,10 @@ IEW::tick()
             toRename->iewInfo[tid].freeSQEntries =
                 ldstQueue.numFreeStoreEntries(tid);
 
+            MJ("IEW", "broadcast") << " freeIQ=" << toRename->iewInfo[tid].freeIQEntries
+                << " freeLQ=" << toRename->iewInfo[tid].freeLQEntries
+                << " freeSQ=" << toRename->iewInfo[tid].freeSQEntries << std::endl;
+
             wroteToTimeBuffer = true;
         }
 
@@ -1645,6 +1654,28 @@ IEW::checkMisprediction(const DynInstPtr& inst)
                 iewStats.predictedNotTakenIncorrect++;
             }
         }
+    }
+}
+
+void
+IEW::readDispatchBuffer(std::vector<DynInstPtr> &buffer)
+{
+    ThreadID tid = 0;
+
+    // Read the insts queue.
+    for (auto num = insts[tid].size(); num; num--) {
+        DynInstPtr inst = insts[tid].front();
+        buffer.push_back(inst);
+        insts[tid].pop();
+        insts[tid].push(inst);
+    }
+
+    // Read the skidBuffer.
+    for (auto num = skidBuffer[tid].size(); num; num--) {
+        DynInstPtr inst = skidBuffer[tid].front();
+        buffer.push_back(inst);
+        skidBuffer[tid].pop();
+        skidBuffer[tid].push(inst);
     }
 }
 

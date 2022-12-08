@@ -43,6 +43,7 @@
 
 #include <queue>
 #include <set>
+#include <vector>
 
 #include "base/statistics.hh"
 #include "cpu/o3/comm.hh"
@@ -495,6 +496,11 @@ class IEW
      *  The Fetch PC should be redirected to the next PC of inst.
      */
     void squashDueToPRE(const DynInstPtr &inst);
+
+    /** Reads the instructions in the insts queue and skidBuffer into buffer.
+     *  These instructions will be flushed on PRE exit.
+     */
+    void readDispatchBuffer(std::vector<DynInstPtr> &buffer);
 };
 
 } // namespace o3

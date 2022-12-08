@@ -1591,11 +1591,6 @@ CPU::htmSendAbortSignal(ThreadID tid, uint64_t htm_uid,
 void
 CPU::enterPRE()
 {
-    // Checkpoint the youngest instruction in ROB. We will resume normal
-    // execution right after this instruction.
-    robTailInst = rob.readTailInst(0);
-    MJ("CPU", "enter pre") << " " << robTailInst->toString() << std::endl;
-
     const auto &regClasses = isa[0]->regClasses();
 
     for (auto type = (RegClassType)0; type <= CCRegClass;
@@ -1628,11 +1623,6 @@ CPU::enterPRE()
 void
 CPU::exitPRE()
 {
-    // Restore the PC.
-    std::unique_ptr<PCStateBase> next_pc(robTailInst->pcState().clone());
-    robTailInst->staticInst->advancePC(*next_pc);
-    MJ("CPU", "exit pre") << " pc=0x" << std::hex << next_pc->instAddr() << std::dec << std::endl;
-
     const auto &regClasses = isa[0]->regClasses();
 
     for (auto type = (RegClassType)0; type <= CCRegClass;
@@ -1662,7 +1652,6 @@ CPU::exitPRE()
     // Flush the PRDQ.
     rename.flushPRDQ();
 
-    //robTailInst = NULL;
     inPRE = false;
 }
 

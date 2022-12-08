@@ -674,9 +674,6 @@ class CPU : public BaseCPU
     /** Whether the CPU is in PRE. */
     bool inPRE;
 
-    /** The tail instruction in ROB when entering PRE. */
-    DynInstPtr robTailInst;
-
     /** Checkpoints of the rename map when entering PRE. */
     std::vector<PhysRegIdPtr> checkpointRenameMap[CCRegClass + 1];
     std::vector<PhysRegIdPtr> checkpointFreeList[CCRegClass + 1];
