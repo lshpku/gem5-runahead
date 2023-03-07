@@ -734,6 +734,7 @@ Commit::tick()
 
             // Make sure the stalling load is still blocking.
             if (stallInst->isLoad() && !stallInst->readyToCommit()) {
+                MJ("Commit", "enter pre") << " " << stallInst->toString() << std::endl;
                 sst->addInst(stallInst);
                 cpu->enterPRE();
             }

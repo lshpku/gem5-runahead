@@ -1194,7 +1194,6 @@ IEW::executeInsts()
 
         DPRINTF(IEW, "Execute: Processing PC %s, [tid:%i] [sn:%llu].\n",
                 inst->pcState(), inst->threadNumber,inst->seqNum);
-        MJ("IEW", "execute") << " " << inst->toString() << std::endl;
 
         // Notify potential listeners that this instruction has started
         // executing
@@ -1217,6 +1216,45 @@ IEW::executeInsts()
             ++iewStats.executedInstStats.numSquashedInsts;
 
             continue;
+        }
+
+        if (inst->isPRE()) {
+            std::stringstream s;
+#define INST_IS(x) do { if (inst->is##x()) s << " " #x; } while (0)
+            INST_IS(MemRef);
+            INST_IS(Load);
+            INST_IS(Store);
+            INST_IS(Atomic);
+            INST_IS(StoreConditional);
+
+            INST_IS(Integer);
+            INST_IS(Floating);
+            INST_IS(Vector);
+
+            INST_IS(Control);
+            INST_IS(Call);
+            INST_IS(Return);
+            INST_IS(DirectCtrl);
+            INST_IS(IndirectCtrl);
+            INST_IS(CondCtrl);
+            INST_IS(UncondCtrl);
+
+            INST_IS(Serializing);
+            INST_IS(SerializeBefore);
+            INST_IS(SerializeAfter);
+            INST_IS(SquashAfter);
+            INST_IS(FullMemBarrier);
+            INST_IS(ReadBarrier);
+            INST_IS(WriteBarrier);
+            INST_IS(NonSpeculative);
+
+            INST_IS(Quiesce);
+            INST_IS(Unverifiable);
+            INST_IS(Syscall);
+
+            MJ("IEW", "execute pre") << " " << inst->toString() << s.str() << std::endl;
+        } else {
+            MJ("IEW", "execute") << " " << inst->toString() << std::endl;
         }
 
         Fault fault = NoFault;

@@ -97,7 +97,12 @@ LSQUnit::recvTimingResp(PacketPtr pkt)
     bool ret = true;
     /* Check that the request is still alive before any further action. */
     if (!request->isReleased()) {
+        MJ("LSQUnit", "recv timing resp") << " " << request->instruction()->toString()
+            << " isPRE=" << request->instruction()->isPRE() << std::endl;
         ret = request->recvTimingResp(pkt);
+    } else {
+        MJ("LSQUnit", "recv timing resp released") << " " << request->instruction()->toString()
+            << " isPRE=" << request->instruction()->isPRE() << std::endl;
     }
     return ret;
 }
@@ -606,11 +611,14 @@ LSQUnit::executeLoad(const DynInstPtr &inst)
         inst->completeAcc(nullptr);
         iewStage->instToCommit(inst);
         iewStage->activityThisCycle();
+        MJ("LSQUnit", "execute load complete acc") << " " << inst->toString() << std::endl;
         return NoFault;
     }
 
-    if (inst->isTranslationDelayed() && load_fault == NoFault)
+    if (inst->isTranslationDelayed() && load_fault == NoFault) {
+        MJ("LSQUnit", "execute load translation delay") << " " << inst->toString() << std::endl;
         return load_fault;
+    }
 
     if (load_fault != NoFault && inst->translationCompleted() &&
             inst->savedRequest->isPartialFault()
@@ -620,6 +628,7 @@ LSQUnit::executeLoad(const DynInstPtr &inst)
         // then the cache must have been blocked. This load will be re-executed
         // when the cache gets unblocked. We will handle the fault when the
         // mem access is complete.
+        MJ("LSQUnit", "execute load translation complete") << " " << inst->toString() << std::endl;
         return NoFault;
     }
 
@@ -635,6 +644,12 @@ LSQUnit::executeLoad(const DynInstPtr &inst)
         DPRINTF(LSQUnit, "Load [sn:%lli] not executed from %s\n",
                 inst->seqNum,
                 (load_fault != NoFault ? "fault" : "predication"));
+        if (load_fault != NoFault) {
+            MJ("LSQUnit", "execute load fault") << " " << inst->toString()
+                << " fault=" << load_fault->name() << std::endl;
+        } else {
+            MJ("LSQUnit", "execute load predication") << " " << inst->toString() << std::endl;
+        }
         if (!(inst->hasRequest() && inst->strictlyOrdered()) ||
             inst->isAtCommit()) {
             inst->setExecuted();
@@ -642,6 +657,7 @@ LSQUnit::executeLoad(const DynInstPtr &inst)
         iewStage->instToCommit(inst);
         iewStage->activityThisCycle();
     } else {
+        MJ("LSQUnit", "execute load mem acc predicate") << " " << inst->toString() << std::endl;
         if (inst->effAddrValid()) {
             auto it = inst->lqIt;
             ++it;
@@ -1356,6 +1372,17 @@ LSQUnit::read(LSQRequest *request, ssize_t load_idx)
             load_idx - 1, load_inst->sqIt._idx, storeQueue.head() - 1,
             request->mainReq()->getPaddr(), request->isSplit() ? " split" :
             "");
+    {
+        auto req = request->mainReq();
+        std::stringstream s;
+        if (req->hasVaddr()) {
+            s << " vaddr=0x" << std::hex << req->getVaddr() << std::dec;
+        }
+        if (req->hasPaddr()) {
+            s << " paddr=0x" << std::hex << req->getPaddr() << std::dec;
+        }
+        MJ("LSQUnit", "read") << " " << request->instruction()->toString() << s.str() << std::endl;
+    }
 
     if (request->mainReq()->isLLSC()) {
         // Disable recording the result temporarily.  Writing to misc
