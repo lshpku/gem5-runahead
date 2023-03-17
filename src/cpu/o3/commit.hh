@@ -513,6 +513,12 @@ class Commit
 
         /** Number of cycles where the commit bandwidth limit is reached. */
         statistics::Scalar commitEligibleSamples;
+
+        /** Committed loads by the hit level of requested data. */
+        statistics::Scalar commitLoadL1;
+        statistics::Scalar commitLoadL2;
+        statistics::Scalar commitLoadL3;
+        statistics::Scalar commitLoadMem;
     } stats;
 
   public:

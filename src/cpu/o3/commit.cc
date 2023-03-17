@@ -193,7 +193,11 @@ Commit::CommitStats::CommitStats(CPU *cpu, Commit *commit)
       ADD_STAT(committedInstType, statistics::units::Count::get(),
                "Class of committed instruction"),
       ADD_STAT(commitEligibleSamples, statistics::units::Cycle::get(),
-               "number cycles where commit BW limit reached")
+               "number cycles where commit BW limit reached"),
+      ADD_STAT(commitLoadL1, statistics::units::Cycle::get(), "commit load l1"),
+      ADD_STAT(commitLoadL2, statistics::units::Cycle::get(), "commit load l2"),
+      ADD_STAT(commitLoadL3, statistics::units::Cycle::get(), "commit load l3"),
+      ADD_STAT(commitLoadMem, statistics::units::Cycle::get(), "commit load mem")
 {
     using namespace statistics;
 
@@ -1518,6 +1522,17 @@ Commit::updateComInstStats(const DynInstPtr &inst)
 
         if (inst->isLoad()) {
             stats.loads[tid]++;
+            if (inst->savedRequest) {
+                Cycles cycle = inst->savedRequest->accessCycle;
+                if (cycle < 5)
+                    stats.commitLoadL1++;
+                else if (cycle < 20)
+                    stats.commitLoadL2++;
+                else if (cycle < 90)
+                    stats.commitLoadL3++;
+                else
+                    stats.commitLoadMem++;
+            }
         }
 
         if (inst->isAtomic()) {

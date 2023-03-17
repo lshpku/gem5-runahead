@@ -258,6 +258,7 @@ class LSQ
         uint32_t _numOutstandingPackets;
         AtomicOpFunctorPtr _amo_op;
         bool _hasStaleTranslation;
+        Cycles accessCycle;
 
       protected:
         LSQUnit* lsqUnit() { return &_port; }

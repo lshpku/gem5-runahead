@@ -95,6 +95,7 @@ LSQUnit::recvTimingResp(PacketPtr pkt)
     LSQRequest *request = dynamic_cast<LSQRequest*>(pkt->senderState);
     assert(request != nullptr);
     bool ret = true;
+    request->accessCycle = lsq->cpu->curCycle() - request->accessCycle;
     /* Check that the request is still alive before any further action. */
     if (!request->isReleased()) {
         MJ("LSQUnit", "recv timing resp") << " " << request->instruction()->toString()

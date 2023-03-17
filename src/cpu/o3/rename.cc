@@ -1309,6 +1309,7 @@ Rename::checkStall(ThreadID tid)
         ret_val = true;
     } else if (!cpu->isInPRE() && calcFreeROBEntries(tid) <= 0) {
         DPRINTF(Rename,"[tid:%i] Stall: ROB has 0 free entries.\n", tid);
+        ++stats.ROBFullEvents;
         MJ("Rename", "block due to rob") << std::endl;
         ret_val = true;
     } else if (cpu->isInPRE() && calcFreePRDQEntries() <= 0) {
