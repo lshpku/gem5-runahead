@@ -5,12 +5,15 @@ import m5
 from m5.objects import O3CPU
 from m5.objects import Cache, MemCtrl, SystemXBar, L2XBar, DDR3_1600_8x8, AddrRange
 from m5.objects import Process, Root, SEWorkload, System, SrcClockDomain, VoltageDomain
-from m5.objects import StridePrefetcher, SignaturePathPrefetcher, IrregularStreamBufferPrefetcher
-from m5.objects.BranchPredictor import TAGE_SC_L_64KB
+from m5.objects import StridePrefetcher, SignaturePathPrefetcher
+from m5.objects.BranchPredictor import TAGE_SC_L_8KB
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--pre', action='store_true')
 parser.add_argument('--mj', action='store_true')
+parser.add_argument('--spp', action='store_true')
+parser.add_argument('--bop', action='store_true')
+parser.add_argument('--drain', action='store_true')
 parser.add_argument('command')
 parser.add_argument('options', nargs=argparse.REMAINDER)
 args = parser.parse_args()
@@ -32,37 +35,36 @@ class L1Cache(Cache):
     tag_latency = 2
     data_latency = 2
     response_latency = 2
-    mshrs = 4
+    mshrs = 8
     tgts_per_mshr = 20
 
 
 class L1ICache(L1Cache):
-    size = '16kB'
+    size = '32kB'
 
 
 class L1DCache(L1Cache):
-    size = '16kB'
-
-    prefetcher = StridePrefetcher()
-    prefetch_on_pf_hit = True
+    size = '32kB'
 
 
 class L2Cache(Cache):
-    size = '64kB'
+    size = '256kB'
     assoc = 8
     tag_latency = 8
     data_latency = 8
     response_latency = 20
-    mshrs = 20
+    mshrs = 16
     tgts_per_mshr = 12
 
-    # prefetcher = SignaturePathPrefetcher()
-    prefetcher = IrregularStreamBufferPrefetcher()
+    if args.bop:
+        prefetcher = StridePrefetcher()
+    if args.spp:
+        prefetcher = SignaturePathPrefetcher()
     prefetch_on_pf_hit = True
 
 
 class L3Cache(Cache):
-    size = '256kB'
+    size = '1MB'
     assoc = 16
     tag_latency = 20
     data_latency = 20
@@ -79,22 +81,22 @@ class PageTableWalkerCache(Cache):
     data_latency = 2
     response_latency = 2
     mshrs = 10
-    size = '1kB'
+    size = '4kB'
     tgts_per_mshr = 12
 
 
 system = System()
 
 system.clk_domain = SrcClockDomain()
-system.clk_domain.clock = '2GHz'
+system.clk_domain.clock = '2.66GHz'
 system.clk_domain.voltage_domain = VoltageDomain()
 
 system.mem_mode = 'timing'
-system.mem_ranges = [AddrRange('512MB')]
+system.mem_ranges = [AddrRange('2GB')]
 
 system.cpu = O3CPU()
 
-system.cpu.branchPred = TAGE_SC_L_64KB()
+system.cpu.branchPred = TAGE_SC_L_8KB()
 
 system.cpu.decodeWidth = 4
 system.cpu.renameWidth = 4
@@ -104,13 +106,17 @@ system.cpu.wbWidth = 4
 system.cpu.commitWidth = 4
 system.cpu.squashWidth = 4
 
-system.cpu.numPhysIntRegs = 128
-system.cpu.numPhysFloatRegs = 128
+system.cpu.numIQEntries = 92
+system.cpu.numPhysIntRegs = 168
+system.cpu.numPhysFloatRegs = 168
 
 system.cpu.numROBEntries = 64
-system.cpu.numPRDQEntries = 64
+system.cpu.numPRDQEntries = 192
 system.cpu.enablePRE = args.pre
 system.cpu.enableMJ = args.mj
+
+# Increase this if IEW::instToCommit() causes overflow (default is 5).
+system.cpu.forwardComSize = 7
 
 system.cpu.icache = L1ICache()
 system.cpu.dcache = L1DCache()
@@ -176,7 +182,7 @@ print("Beginning simulation")
 cause_slice = 'reach slice limit'
 
 while True:
-    system.cpu.scheduleInstStop(0, 1000000, cause_slice)
+    # system.cpu.scheduleInstStop(0, 1000000, cause_slice)
     exit_event = m5.simulate()
     exit_cause = exit_event.getCause()
     inst_count = system.cpu.getCurrentInstCount(0)
@@ -187,3 +193,6 @@ while True:
     print('Pause @ tick %i inst %i because %s' % (m5.curTick(), inst_count, exit_cause))
 
 print('Exiting @ tick %i inst %i because %s' % (m5.curTick(), inst_count, exit_cause))
+if args.drain:
+    m5.drain()
+exit(exit_event.getCode())
