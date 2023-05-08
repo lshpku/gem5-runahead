@@ -519,6 +519,8 @@ class Commit
         statistics::Scalar commitLoadL2;
         statistics::Scalar commitLoadL3;
         statistics::Scalar commitLoadMem;
+
+        statistics::Scalar stallingCycle;
     } stats;
 
   public:

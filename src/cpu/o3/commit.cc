@@ -78,6 +78,9 @@ const char *_sn[] = {
     "FetchTrapPending",
     "SquashAfterPending"
 };
+
+typedef std::pair<uint64_t, uint64_t> pair_count; 
+std::unordered_map<gem5::Addr, pair_count> load_count;
 }
 
 namespace gem5
@@ -197,7 +200,8 @@ Commit::CommitStats::CommitStats(CPU *cpu, Commit *commit)
       ADD_STAT(commitLoadL1, statistics::units::Cycle::get(), "commit load l1"),
       ADD_STAT(commitLoadL2, statistics::units::Cycle::get(), "commit load l2"),
       ADD_STAT(commitLoadL3, statistics::units::Cycle::get(), "commit load l3"),
-      ADD_STAT(commitLoadMem, statistics::units::Cycle::get(), "commit load mem")
+      ADD_STAT(commitLoadMem, statistics::units::Cycle::get(), "commit load mem"),
+      ADD_STAT(stallingCycle, statistics::units::Cycle::get(), "stalling cycle")
 {
     using namespace statistics;
 
@@ -361,7 +365,18 @@ Commit::clearStates(ThreadID tid)
     squashAfterInst[tid] = NULL;
 }
 
-void Commit::drain() { drainPending = true; }
+void
+Commit::drain()
+{
+    drainPending = true;
+    std::cout << "[load count]" << std::endl;
+    for (auto &i : load_count) {
+        pair_count &c = i.second;
+        std::cout << "0x" << std::hex << i.first << std::dec
+            << ' ' << c.first << ' ' << c.second << std::endl;
+    }
+    exit(0);
+}
 
 void
 Commit::drainResume()
@@ -725,9 +740,19 @@ Commit::tick()
 
     updateStatus();
 
+    static Cycles block_begin;
+    static bool blocking = false;
+    static DynInstPtr block_inst;
+
     // Enter PRE when a load instruction causes a full-window stall.
     if (toIEW->commitInfo[0].usedROB &&
         toIEW->commitInfo[0].freeROBEntries == 0) {
+
+        if (!blocking) {
+            block_begin = cpu->curCycle();
+            blocking = true;
+            block_inst = rob->readHeadInst(0);
+        }
 
         MJ("Commit", "rob full") << " " << rob->readHeadInst(0)->toString() << std::endl;
 
@@ -751,6 +776,23 @@ Commit::tick()
         if (commitStatus[0] == ROBSquashing && cpu->isInPRE()) {
             MJ("Commit", "exit pre exception") << std::endl;
             cpu->exitPRE();
+        }
+    }
+
+    if (blocking) {
+        auto &info = toIEW->commitInfo[0];
+        if ((info.usedROB && info.freeROBEntries > 0) ||
+                commitStatus[0] == ROBSquashing) {
+            uint64_t cycles = cpu->curCycle() - block_begin;
+            stats.stallingCycle += cycles;
+
+            Addr pc = block_inst->pcState().instAddr();
+            pair_count &cnt = load_count[pc];
+            cnt.first++;
+            cnt.second += cycles;
+
+            blocking = false;
+            block_inst = nullptr;
         }
     }
 
@@ -1514,6 +1556,8 @@ Commit::updateComInstStats(const DynInstPtr &inst)
     if (inst->isControl())
         stats.branches[tid]++;
 
+    static Addr last_addr = 0;
+
     //
     //  Memory references
     //
@@ -1522,6 +1566,7 @@ Commit::updateComInstStats(const DynInstPtr &inst)
 
         if (inst->isLoad()) {
             stats.loads[tid]++;
+            Addr pc = inst->pcState().instAddr();
             if (inst->savedRequest) {
                 Cycles cycle = inst->savedRequest->accessCycle;
                 if (cycle < 5)
@@ -1532,6 +1577,20 @@ Commit::updateComInstStats(const DynInstPtr &inst)
                     stats.commitLoadL3++;
                 else
                     stats.commitLoadMem++;
+                if (0) {
+                //if (pc == 0x11fea) {
+                    Addr addr = inst->savedRequest->_addr;
+                    if (addr == last_addr + 8)
+                        std::cout << cpu->curCycle() << " 0x" << std::hex << addr
+                            << std::dec << ' ' << cycle << std::endl;
+                    else if (addr > last_addr)
+                        std::cout << cpu->curCycle() << " 0x" << std::hex << addr
+                            << std::dec << ' ' << cycle << " ++++++++++++++++++++" << std::endl;
+                    else
+                        std::cout << cpu->curCycle() << " 0x" << std::hex << addr
+                            << std::dec << ' ' << cycle << " --------------------" << std::endl;
+                    last_addr = addr;
+                }
             }
         }
 
