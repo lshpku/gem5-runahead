@@ -10,7 +10,7 @@ namespace o3
 
 SST::SST(CPU *_cpu, const BaseO3CPUParams &params)
     : cpu(_cpu),
-      numEntries(128)
+      numEntries(params.numSSTEntries)
 {
     assert(numEntries > 0);
 
