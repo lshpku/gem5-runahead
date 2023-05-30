@@ -100,6 +100,7 @@ Commit::processTrapEvent(ThreadID tid)
 Commit::Commit(CPU *_cpu, const BaseO3CPUParams &params)
     : commitPolicy(params.smtCommitPolicy),
       cpu(_cpu),
+      enablePREBranch(params.enablePREBranch),
       iewToCommitDelay(params.iewToCommitDelay),
       commitToIEWDelay(params.commitToIEWDelay),
       renameToROBDelay(params.renameToROBDelay),
@@ -787,9 +788,11 @@ Commit::tick()
             stats.stallingCycle += cycles;
 
             Addr pc = block_inst->pcState().instAddr();
-            pair_count &cnt = load_count[pc];
-            cnt.first++;
-            cnt.second += cycles;
+            if (0) {
+                pair_count &cnt = load_count[pc];
+                cnt.first++;
+                cnt.second += cycles;
+            }
 
             blocking = false;
             block_inst = nullptr;
@@ -1023,6 +1026,22 @@ Commit::commit()
                 ++stats.branchMispredicts;
             }
 
+            set(toIEW->commitInfo[tid].pc, fromIEW->pc[tid]);
+        }
+
+        if (cpu->isInPRE() && fromIEW->squash[tid] &&
+            commitStatus[tid] != TrapPending &&
+            fromIEW->squashedSeqNum[tid] > youngestSeqNum[tid] &&
+            fromIEW->mispredictInst[tid]) {
+
+            DynInstPtr &inst = fromIEW->mispredictInst[tid];
+            assert(inst->isPRE());
+
+            toIEW->commitInfo[tid].doneSeqNum = fromIEW->squashedSeqNum[tid];
+            toIEW->commitInfo[tid].squash = true;
+            toIEW->commitInfo[tid].mispredictInst = inst;
+            toIEW->commitInfo[tid].branchTaken = fromIEW->branchTaken[tid];
+            toIEW->commitInfo[tid].squashInst = inst;
             set(toIEW->commitInfo[tid].pc, fromIEW->pc[tid]);
         }
 
@@ -1535,6 +1554,8 @@ Commit::markCompletedInsts()
     }
 }
 
+MispTable mispTable;
+
 void
 Commit::updateComInstStats(const DynInstPtr &inst)
 {
@@ -1555,6 +1576,21 @@ Commit::updateComInstStats(const DynInstPtr &inst)
     //
     if (inst->isControl())
         stats.branches[tid]++;
+
+    static DynInstPtr last_branch;
+
+    if (enablePREBranch) {
+        if (inst->isCondCtrl()) {
+            mispTable.add(inst, inst->mispredicted());
+            last_branch = inst;
+        }
+        if (inst->isInSST() && last_branch && mispTable.high(last_branch)) {
+            if (!sst->hasInst(last_branch)) {
+                sst->addInst(last_branch);
+            }
+            last_branch = nullptr;
+        }
+    }
 
     static Addr last_addr = 0;
 

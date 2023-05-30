@@ -333,6 +333,8 @@ Rename::drainSanityCheck() const
     }
 }
 
+static DynInstPtr unresolvedBranch;
+
 void
 Rename::squash(const InstSeqNum &squash_seq_num, ThreadID tid)
 {
@@ -383,6 +385,11 @@ Rename::squash(const InstSeqNum &squash_seq_num, ThreadID tid)
 
     // Clear the skid buffer in case it has any data in it.
     skidBuffer[tid].clear();
+
+    if (unresolvedBranch) {
+        //std::cout << cpu->curCycle() << " squash " << squash_seq_num << std::endl;
+    }
+    unresolvedBranch = nullptr;
 
     doSquash(squash_seq_num, tid);
 }
@@ -445,7 +452,6 @@ Rename::tick()
             if (!inst->readyToCommit()) {
                 break;
             }
-            prdq.pop_front();
             MJ("Rename", "pre commit") << " " << inst->toString() << std::endl;
             unsigned num_dest_regs = inst->numDestRegs();
             for (int idx = 0; idx < num_dest_regs; idx++) {
@@ -458,6 +464,7 @@ Rename::tick()
                     freeList->addReg(oldPhysReg);
                 }
             }
+            prdq.pop_front();
         }
     }
 
@@ -641,6 +648,12 @@ Rename::renameInsts(ThreadID tid)
 
         assert(!insts_to_rename.empty());
 
+        if (cpu->isInPRE() && unresolvedBranch &&
+            !unresolvedBranch->readyToCommit()) {
+            //std::cout << cpu->curCycle() << " wait " << unresolvedBranch->toString() << std::endl;
+            break;
+        }
+
         DynInstPtr inst = insts_to_rename.front();
 
         //For all kind of instructions, check ROB and IQ first For load
@@ -801,6 +814,10 @@ Rename::renameInsts(ThreadID tid)
         if (cpu->isInPRE()) {
             inst->setPRE();
             prdq.push_back(inst);
+            if (inst->isCondCtrl()) {
+                unresolvedBranch = inst;
+                //std::cout << cpu->curCycle() << " wait " << inst->toString() << std::endl;
+            }
         }
     }
 
@@ -1309,7 +1326,6 @@ Rename::checkStall(ThreadID tid)
         ret_val = true;
     } else if (!cpu->isInPRE() && calcFreeROBEntries(tid) <= 0) {
         DPRINTF(Rename,"[tid:%i] Stall: ROB has 0 free entries.\n", tid);
-        ++stats.ROBFullEvents;
         MJ("Rename", "block due to rob") << std::endl;
         ret_val = true;
     } else if (cpu->isInPRE() && calcFreePRDQEntries() <= 0) {

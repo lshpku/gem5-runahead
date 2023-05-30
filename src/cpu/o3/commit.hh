@@ -355,6 +355,8 @@ class Commit
     /** Pointer to the stalling slice table. */
     SST *sst;
 
+    bool enablePREBranch;
+
     /** Records that commit has written to the time buffer this cycle. Used for
      * the CPU to determine if it can deschedule itself if there is no activity.
      */

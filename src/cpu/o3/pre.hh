@@ -56,10 +56,35 @@ class SST
 };
 
 /**
- * Precise register deallocation queue class.
+ * Misprediction table class.
  */
-class PRDQ
+class MispTable
 {
+    struct Cell {
+        Addr pc;
+        short lru; // head is 0
+        short ref;
+        short misp;
+    };
+
+    typedef std::array<Cell, 8> Row;
+
+    std::array<Row, 8> table;
+
+    static constexpr int MAX_REF = 256;
+
+    bool HIGH(short ref, short misp) {
+        return ref >= 64 && misp >= ref / 8;
+    }
+
+  public:
+    MispTable();
+
+    /** Adds a branch instruction into the table. */
+    void add(const DynInstPtr &inst);
+
+    /** Queries whether the branch has high misprediction rate. */
+    bool high(const DynInstPtr &inst);
 };
 
 } // namespace o3

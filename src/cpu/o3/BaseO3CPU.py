@@ -172,6 +172,7 @@ class BaseO3CPU(BaseCPU):
     needsTSO = Param.Bool(False, "Enable TSO Memory model")
 
     enablePRE = Param.Bool(False, "Enable Precise Runahead Execution")
+    enablePREBranch = Param.Bool(False, "Allow branch instructions in PRE")
     numPRDQEntries = Param.Unsigned(192, "Number of precise register "
                                     "deallocation queue entries")
     numSSTEntries = Param.Unsigned(128, "Number of stalling slice table "

@@ -1621,6 +1621,7 @@ LSQUnit::read(LSQRequest *request, ssize_t load_idx)
     // if we the cache is not blocked, do cache access
     request->buildPackets();
     request->sendPacketToCache();
+    request->accessCycle = cpu->curCycle();
     if (!request->isSent())
         iewStage->blockMemInst(load_inst);
 

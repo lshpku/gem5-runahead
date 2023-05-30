@@ -824,7 +824,6 @@ LSQ::pushRequest(const DynInstPtr& inst, bool isLoad, uint8_t *data,
         request->_byteEnable = byte_enable;
         inst->setRequest();
         request->taskId(cpu->taskId());
-        request->accessCycle = cpu->curCycle();
 
         // There might be fault from a previous execution attempt if this is
         // a strictly ordered load
