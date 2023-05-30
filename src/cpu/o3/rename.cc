@@ -386,9 +386,7 @@ Rename::squash(const InstSeqNum &squash_seq_num, ThreadID tid)
     // Clear the skid buffer in case it has any data in it.
     skidBuffer[tid].clear();
 
-    if (unresolvedBranch) {
-        //std::cout << cpu->curCycle() << " squash " << squash_seq_num << std::endl;
-    }
+    // Clear the blocking branch if it's under PRE mode.
     unresolvedBranch = nullptr;
 
     doSquash(squash_seq_num, tid);
@@ -641,6 +639,19 @@ Rename::renameInsts(ThreadID tid)
         }
     }
 
+    // Remove the blocking branch if it's been resolved or has exceeded
+    // the cycle limit.
+    if (cpu->isInPRE() && unresolvedBranch) {
+        if (unresolvedBranch->readyToCommit()) {
+            unresolvedBranch = nullptr;
+        } else {
+            auto maxCycle = *(uint64_t *)unresolvedBranch->memData;
+            if (cpu->curCycle() > maxCycle) {
+                unresolvedBranch = nullptr;
+            }
+        }
+    }
+
     int renamed_insts = 0;
 
     while (insts_available > 0 &&  toIEWIndex < renameWidth) {
@@ -648,9 +659,8 @@ Rename::renameInsts(ThreadID tid)
 
         assert(!insts_to_rename.empty());
 
-        if (cpu->isInPRE() && unresolvedBranch &&
-            !unresolvedBranch->readyToCommit()) {
-            //std::cout << cpu->curCycle() << " wait " << unresolvedBranch->toString() << std::endl;
+        // In PRE mode, block renaming if there is an unresolved branch.
+        if (cpu->isInPRE() && unresolvedBranch) {
             break;
         }
 
@@ -815,8 +825,11 @@ Rename::renameInsts(ThreadID tid)
             inst->setPRE();
             prdq.push_back(inst);
             if (inst->isCondCtrl()) {
+                // Spare memData to store the cycle limit.
+                assert(!inst->memData);
+                inst->memData = new uint8_t[8];
+                *(uint64_t *)inst->memData = cpu->curCycle() + 20;
                 unresolvedBranch = inst;
-                //std::cout << cpu->curCycle() << " wait " << inst->toString() << std::endl;
             }
         }
     }

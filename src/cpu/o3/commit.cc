@@ -1029,6 +1029,7 @@ Commit::commit()
             set(toIEW->commitInfo[tid].pc, fromIEW->pc[tid]);
         }
 
+        // Handle a branch misprediction in PRE mode.
         if (cpu->isInPRE() && fromIEW->squash[tid] &&
             commitStatus[tid] != TrapPending &&
             fromIEW->squashedSeqNum[tid] > youngestSeqNum[tid] &&
@@ -1036,13 +1037,18 @@ Commit::commit()
 
             DynInstPtr &inst = fromIEW->mispredictInst[tid];
             assert(inst->isPRE());
+            auto maxCycle = *(uint64_t *)inst->memData;
 
-            toIEW->commitInfo[tid].doneSeqNum = fromIEW->squashedSeqNum[tid];
-            toIEW->commitInfo[tid].squash = true;
-            toIEW->commitInfo[tid].mispredictInst = inst;
-            toIEW->commitInfo[tid].branchTaken = fromIEW->branchTaken[tid];
-            toIEW->commitInfo[tid].squashInst = inst;
-            set(toIEW->commitInfo[tid].pc, fromIEW->pc[tid]);
+            // Ignore the misprediction event if this branch has exceeded
+            // the cycle limit.
+            if (cpu->curCycle() <= maxCycle) {
+                toIEW->commitInfo[tid].doneSeqNum = fromIEW->squashedSeqNum[tid];
+                toIEW->commitInfo[tid].squash = true;
+                toIEW->commitInfo[tid].mispredictInst = inst;
+                toIEW->commitInfo[tid].branchTaken = fromIEW->branchTaken[tid];
+                toIEW->commitInfo[tid].squashInst = inst;
+                set(toIEW->commitInfo[tid].pc, fromIEW->pc[tid]);
+            }
         }
 
         if (commitStatus[tid] == ROBSquashing) {
@@ -1581,7 +1587,7 @@ Commit::updateComInstStats(const DynInstPtr &inst)
 
     if (enablePREBranch) {
         if (inst->isCondCtrl()) {
-            mispTable.add(inst, inst->mispredicted());
+            mispTable.add(inst);
             last_branch = inst;
         }
         if (inst->isInSST() && last_branch && mispTable.high(last_branch)) {
