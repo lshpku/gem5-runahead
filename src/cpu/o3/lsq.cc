@@ -1091,7 +1091,10 @@ void
 LSQ::LSQRequest::install()
 {
     if (isLoad()) {
-        _port.loadQueue[_inst->lqIdx].setRequest(this);
+        // Don't set request for PRE loads.
+        if (!_inst->isPRE()) {
+            _port.loadQueue[_inst->lqIdx].setRequest(this);
+        }
     } else {
         // Store, StoreConditional, and Atomic requests are pushed
         // to this storeQueue

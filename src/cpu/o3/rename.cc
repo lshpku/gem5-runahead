@@ -462,6 +462,9 @@ Rename::tick()
                     freeList->addReg(oldPhysReg);
                 }
             }
+            if (inst->savedRequest) {
+                inst->savedRequest->freeLSQEntry();
+            }
             prdq.pop_front();
         }
     }
@@ -823,12 +826,13 @@ Rename::renameInsts(ThreadID tid)
         // In PRE, put instruction in the PRDQ instead of ROB.
         if (cpu->isInPRE()) {
             inst->setPRE();
+            inst->savedRequest = nullptr;
             prdq.push_back(inst);
             if (inst->isCondCtrl()) {
                 // Spare memData to store the cycle limit.
                 assert(!inst->memData);
                 inst->memData = new uint8_t[8];
-                *(uint64_t *)inst->memData = cpu->curCycle() + 20;
+                *(uint64_t *)inst->memData = cpu->curCycle() + 14;
                 unresolvedBranch = inst;
             }
         }
@@ -1052,6 +1056,15 @@ Rename::doSquash(const InstSeqNum &squashed_seq_num, ThreadID tid)
         historyBuffer[tid].erase(hb_it++);
 
         ++stats.undoneMaps;
+    }
+
+    // Flush PRDQ when exit PRE mode.
+    while (!prdq.empty() && prdq.back()->seqNum > squashed_seq_num) {
+        const DynInstPtr &inst = prdq.back();
+        if (inst->savedRequest) {
+            inst->savedRequest->freeLSQEntry();
+        }
+        prdq.pop_back();
     }
 }
 
@@ -1560,12 +1573,6 @@ Rename::dumpHistory()
             buf_it++;
         }
     }
-}
-
-void
-Rename::flushPRDQ()
-{
-    prdq.clear();
 }
 
 } // namespace o3

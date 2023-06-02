@@ -78,6 +78,9 @@ namespace std { inline void endl(gem5::MJ &o) {} }
 namespace gem5
 {
 
+/**
+ * My journal class.
+ */
 class MJ
 {
   public:
@@ -99,6 +102,11 @@ class MJ
         return *this;
     }
 };
+
+/**
+ * End of one line of MJ.
+ */
+inline void JG(gem5::MJ &o) {}
 
 template <class>
 class Checker;

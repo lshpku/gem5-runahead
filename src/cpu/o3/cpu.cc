@@ -75,7 +75,7 @@ MJ::MJ(const char *stage, const char *event)
         lastTick = curTick();
         std::cout << std::endl;
     }
-    std::cout << "[" << stage << "] @" << curTick() / 500 << " " << event;
+    std::cout << "[" << stage << "] @" << curTick() << " " << event;
 }
 
 struct BaseCPUParams;
@@ -1648,9 +1648,6 @@ CPU::exitPRE()
         checkpointRenameMap[type].clear();
         checkpointFreeList[type].clear();
     }
-
-    // Flush the PRDQ.
-    rename.flushPRDQ();
 
     inPRE = false;
 }

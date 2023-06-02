@@ -331,16 +331,17 @@ LSQUnit::insertLoad(const DynInstPtr &load_inst)
     DPRINTF(LSQUnit, "Inserting load PC %s, idx:%i [sn:%lli]\n",
             load_inst->pcState(), loadQueue.tail(), load_inst->seqNum);
 
-    /* Grow the queue. */
-    loadQueue.advance_tail();
-
     load_inst->sqIt = storeQueue.end();
 
-    assert(!loadQueue.back().valid());
-    loadQueue.back().set(load_inst);
-    load_inst->lqIdx = loadQueue.tail();
-    assert(load_inst->lqIdx > 0);
-    load_inst->lqIt = loadQueue.getIterator(load_inst->lqIdx);
+    // Don't allocate an LQ entry if this load is in PRE mode.
+    if (!load_inst->isPRE()) {
+        loadQueue.advance_tail();
+        assert(!loadQueue.back().valid());
+        loadQueue.back().set(load_inst);
+        load_inst->lqIdx = loadQueue.tail();
+        assert(load_inst->lqIdx > 0);
+        load_inst->lqIt = loadQueue.getIterator(load_inst->lqIdx);
+    }
 
     // hardware transactional memory
     // transactional state and nesting depth must be tracked
@@ -663,7 +664,7 @@ LSQUnit::executeLoad(const DynInstPtr &inst)
             auto it = inst->lqIt;
             ++it;
 
-            if (checkLoads)
+            if (checkLoads && !inst->isPRE())
                 return checkViolations(it, inst);
         }
     }
@@ -1334,7 +1335,13 @@ LSQUnit::cacheLineSize()
 Fault
 LSQUnit::read(LSQRequest *request, ssize_t load_idx)
 {
-    LQEntry& load_entry = loadQueue[load_idx];
+    // Use a temporary LQ entry for PRE load.
+    const DynInstPtr& req_inst = request->instruction();
+    LQEntry tmp_entry;
+    if (req_inst->isPRE()) {
+        tmp_entry.set(req_inst);
+    }
+    LQEntry& load_entry = tmp_entry.valid() ? tmp_entry : loadQueue[load_idx];
     const DynInstPtr& load_inst = load_entry.instruction();
 
     load_entry.setRequest(request);
@@ -1408,6 +1415,7 @@ LSQUnit::read(LSQRequest *request, ssize_t load_idx)
 
         WritebackEvent *wb = new WritebackEvent(load_inst, main_pkt, this);
         cpu->schedule(wb, cpu->clockEdge(delay));
+        tmp_entry.setRequest(nullptr);
         return NoFault;
     }
 
@@ -1475,6 +1483,14 @@ LSQUnit::read(LSQRequest *request, ssize_t load_idx)
                   (store_has_upper_limit || lower_load_has_store_part)))) {
 
                 coverage = AddrRangeCoverage::PartialAddrRangeCoverage;
+            }
+
+            // For the convenience of implementation, treat partial coverage
+            // as miss for PRE loads, as LSQ cannot stall on a PRE load.
+            if (load_inst->isPRE() &&
+                coverage == AddrRangeCoverage::PartialAddrRangeCoverage) {
+                MJ("LSQUnit", "pre partial coverage") << ' ' << load_inst->toString() << JG;
+                continue;
             }
 
             if (coverage == AddrRangeCoverage::FullAddrRangeCoverage) {
@@ -1552,6 +1568,7 @@ LSQUnit::read(LSQRequest *request, ssize_t load_idx)
                 // Don't need to do anything special for split loads.
                 ++stats.forwLoads;
 
+                tmp_entry.setRequest(nullptr);
                 return NoFault;
             } else if (
                     coverage == AddrRangeCoverage::PartialAddrRangeCoverage) {
@@ -1570,6 +1587,7 @@ LSQUnit::read(LSQRequest *request, ssize_t load_idx)
                      loadQueue[stallingLoadIdx].instruction()->seqNum)) {
                     stalled = true;
                     stallingStoreIsn = store_it->instruction()->seqNum;
+                    assert(load_idx >= 0);
                     stallingLoadIdx = load_idx;
                 }
 
@@ -1625,6 +1643,7 @@ LSQUnit::read(LSQRequest *request, ssize_t load_idx)
     if (!request->isSent())
         iewStage->blockMemInst(load_inst);
 
+    tmp_entry.setRequest(nullptr);
     return NoFault;
 }
 

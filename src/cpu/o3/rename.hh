@@ -539,9 +539,6 @@ class Rename
     /** Sets pointer to the stalling slice table. */
     void setSST(SST *_sst) { sst = _sst; }
 
-    /** Flushes the PRDQ on PRE exit. */
-    void flushPRDQ();
-
   private:
     /** Pointer to the stalling slice table. */
     SST *sst;
