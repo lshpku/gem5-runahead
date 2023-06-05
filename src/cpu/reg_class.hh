@@ -351,6 +351,16 @@ class PhysRegId : private RegId
 
     void setUsableForPRE(bool value) { usableForPRE = value; }
     bool isUsableForPRE() const { return usableForPRE; }
+
+    /** Number of on-the-fly uops that refers to this register. Only valid
+     *  in PRE mode.
+     */
+    int numRef;
+
+    /** Whether the logical register of this physical register is overwritten
+     *  so that it won't be referred to any more. Only valid in PRE mode.
+     */
+    bool overwritten;
 };
 
 using PhysRegIdPtr = PhysRegId*;

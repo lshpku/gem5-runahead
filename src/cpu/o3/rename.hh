@@ -554,6 +554,9 @@ class Rename
 
     /** Calculates the number of free PRDQ entries. */
     int calcFreePRDQEntries() { return numPRDQEntries - prdq.size(); }
+
+    /** Whether enables register early recycle in PRE. */
+    bool earlyRecycle;
 };
 
 } // namespace o3

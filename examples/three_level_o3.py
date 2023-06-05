@@ -10,7 +10,8 @@ from m5.objects.BranchPredictor import TAGE_SC_L_8KB
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--pre', action='store_true')
-parser.add_argument('--pre-br', action='store_true')
+parser.add_argument('--br', action='store_true')
+parser.add_argument('--er', action='store_true')
 parser.add_argument('--mj', action='store_true')
 parser.add_argument('--spp', action='store_true')
 parser.add_argument('--bop', action='store_true')
@@ -108,15 +109,16 @@ system.cpu.commitWidth = 4
 system.cpu.squashWidth = 4
 
 system.cpu.numIQEntries = 92
-system.cpu.LQEntries = 64
-system.cpu.SQEntries = 64
+system.cpu.LQEntries = 32
+system.cpu.SQEntries = 32
 system.cpu.numPhysIntRegs = 168
 system.cpu.numPhysFloatRegs = 168
 
 system.cpu.numROBEntries = 64
 system.cpu.numPRDQEntries = 192
-system.cpu.enablePRE = args.pre or args.pre_br
-system.cpu.enablePREBranch = args.pre_br
+system.cpu.enablePRE = args.pre
+system.cpu.enablePREBranch = args.br
+system.cpu.enablePREEarlyRecycle = args.er
 system.cpu.enableMJ = args.mj
 
 # Increase this if IEW::instToCommit() causes overflow (default is 5).

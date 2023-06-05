@@ -66,7 +66,8 @@ Rename::Rename(CPU *_cpu, const BaseO3CPUParams &params)
       renameWidth(params.renameWidth),
       numThreads(params.numThreads),
       stats(_cpu),
-      numPRDQEntries(params.numPRDQEntries)
+      numPRDQEntries(params.numPRDQEntries),
+      earlyRecycle(params.enablePREEarlyRecycle)
 {
     if (renameWidth > MaxWidth)
         fatal("renameWidth (%d) is larger than compiled limit (%d),\n"
@@ -453,12 +454,11 @@ Rename::tick()
             MJ("Rename", "pre commit") << " " << inst->toString() << std::endl;
             unsigned num_dest_regs = inst->numDestRegs();
             for (int idx = 0; idx < num_dest_regs; idx++) {
-                PhysRegIdPtr newPhysReg = inst->renamedDestIdx(idx);
                 PhysRegIdPtr oldPhysReg = inst->prevDestIdx(idx);
                 // Do not recycle registers that are not usable for PRE. These
                 // registers have not been overwritten in the architectural
                 // state.
-                if (oldPhysReg->isUsableForPRE() && newPhysReg != oldPhysReg) {
+                if (oldPhysReg->isUsableForPRE() && !earlyRecycle) {
                     freeList->addReg(oldPhysReg);
                 }
             }
@@ -478,9 +478,40 @@ Rename::tick()
         for (int i = 0; i < fromIEW->size; ++i) {
             DynInstPtr &inst = fromIEW->insts[i];
             assert(inst);
-            if (inst->isPRE()) {
-                inst->setCanCommit();
-                MJ("Rename", "pre complete") << " " << inst->toString() << std::endl;
+
+            if (!inst->isPRE())
+                continue;
+
+            inst->setCanCommit();
+            MJ("Rename", "pre complete") << " " << inst->toString() << std::endl;
+
+            if (!earlyRecycle)
+                continue;
+
+            // Recycle src regs.
+            unsigned num_src_regs = inst->numSrcRegs();
+            for (int idx = 0; idx < num_src_regs; idx++) {
+                PhysRegIdPtr srcReg = inst->renamedSrcIdx(idx);
+                if (srcReg->isUsableForPRE()) {
+                    srcReg->numRef--;
+                    assert(srcReg->numRef >= 0);
+                    if (srcReg->numRef == 0 && srcReg->overwritten) {
+                        freeList->addReg(srcReg);
+                    }
+                }
+            }
+
+            // Recycle dest regs.
+            unsigned num_dest_regs = inst->numDestRegs();
+            for (int idx = 0; idx < num_dest_regs; idx++) {
+                PhysRegIdPtr destReg = inst->renamedDestIdx(idx);
+                if (destReg->isUsableForPRE()) {
+                    destReg->numRef--;
+                    assert(destReg->numRef >= 0);
+                    if (destReg->numRef == 0 && destReg->overwritten) {
+                        freeList->addReg(destReg);
+                    }
+                }
             }
         }
     }
@@ -1173,6 +1204,10 @@ Rename::renameSrcRegs(const DynInstPtr &inst, ThreadID tid)
             sst->addInst(renamed_reg->getSrcAddr());
         }
 
+        if (earlyRecycle) {
+            renamed_reg->numRef++;
+        }
+
         inst->renameSrcReg(src_idx, renamed_reg);
 
         // See if the register is ready or not.
@@ -1222,6 +1257,17 @@ Rename::renameDestRegs(const DynInstPtr &inst, ThreadID tid)
             << " oldPhys=" << rename_result.second->index() << std::endl;
 
         rename_result.first->setSrcAddr(inst->pcState().instAddr());
+
+        if (earlyRecycle) {
+            rename_result.first->numRef = 1;
+            rename_result.first->overwritten = false;
+            if (rename_result.second->isUsableForPRE()) {
+                rename_result.second->overwritten = true;
+                if (rename_result.second->numRef == 0) {
+                    freeList->addReg(rename_result.second);
+                }
+            }
+        }
 
         inst->flattenedDestIdx(dest_idx, flat_dest_regid);
 
