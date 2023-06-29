@@ -496,6 +496,8 @@ Rename::tick()
                     srcReg->numRef--;
                     assert(srcReg->numRef >= 0);
                     if (srcReg->numRef == 0 && srcReg->overwritten) {
+                        MJ("Rename", "early recycle complete src") << " " << inst->toString()
+                            << " phys=" << srcReg->index() << JG;
                         freeList->addReg(srcReg);
                     }
                 }
@@ -509,6 +511,8 @@ Rename::tick()
                     destReg->numRef--;
                     assert(destReg->numRef >= 0);
                     if (destReg->numRef == 0 && destReg->overwritten) {
+                        MJ("Rename", "early recycle complete dest") << " " << inst->toString()
+                            << " phys=" << destReg->index() << JG;
                         freeList->addReg(destReg);
                     }
                 }
@@ -1258,12 +1262,14 @@ Rename::renameDestRegs(const DynInstPtr &inst, ThreadID tid)
 
         rename_result.first->setSrcAddr(inst->pcState().instAddr());
 
-        if (earlyRecycle) {
+        if (cpu->isInPRE() && earlyRecycle) {
             rename_result.first->numRef = 1;
             rename_result.first->overwritten = false;
             if (rename_result.second->isUsableForPRE()) {
                 rename_result.second->overwritten = true;
                 if (rename_result.second->numRef == 0) {
+                    MJ("Rename", "early recycle rename dest") << " " << inst->toString()
+                        << " phys=" << rename_result.second->index() << JG;
                     freeList->addReg(rename_result.second);
                 }
             }
