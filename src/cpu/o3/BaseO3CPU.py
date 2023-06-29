@@ -179,4 +179,4 @@ class BaseO3CPU(BaseCPU):
                                     "deallocation queue entries")
     numSSTEntries = Param.Unsigned(128, "Number of stalling slice table "
                                    "entries")
-    enableMJ = Param.Bool(True, "Enable my journal")
+    enableMJ = Param.Bool(False, "Enable my journal")

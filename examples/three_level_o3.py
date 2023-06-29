@@ -6,19 +6,21 @@ from m5.objects import O3CPU
 from m5.objects import Cache, MemCtrl, SystemXBar, L2XBar, DDR3_1600_8x8, AddrRange
 from m5.objects import Process, Root, SEWorkload, System, SrcClockDomain, VoltageDomain
 from m5.objects import StridePrefetcher, SignaturePathPrefetcher
-from m5.objects.BranchPredictor import TAGE_SC_L_8KB
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--pre', action='store_true')
-parser.add_argument('--br', action='store_true')
-parser.add_argument('--er', action='store_true')
-parser.add_argument('--mj', action='store_true')
-parser.add_argument('--spp', action='store_true')
-parser.add_argument('--bop', action='store_true')
+parser.add_argument('-p', '--param', action='append', default=[])
 parser.add_argument('--drain', action='store_true')
 parser.add_argument('command')
 parser.add_argument('options', nargs=argparse.REMAINDER)
 args = parser.parse_args()
+
+l2pref, bp_type = None, 'TAGE_SC_L_8KB'
+for p in args.param:
+    if p.startswith('l2pref'):
+        l2pref = p.split('=', 1)[1]
+    elif p.startswith('bp_type'):
+        bp_type = p.split('=', 1)[1]
+spp, bop = 0, 0
 
 
 def print(*args):
@@ -33,7 +35,7 @@ print('options:', *(repr(i) for i in args.options))
 
 
 class L1Cache(Cache):
-    assoc = 2
+    assoc = 4
     tag_latency = 2
     data_latency = 2
     response_latency = 2
@@ -58,9 +60,9 @@ class L2Cache(Cache):
     mshrs = 16
     tgts_per_mshr = 12
 
-    if args.bop:
+    if l2pref == 'bop':
         prefetcher = StridePrefetcher()
-    if args.spp:
+    elif l2pref == 'spp':
         prefetcher = SignaturePathPrefetcher()
     prefetch_on_pf_hit = True
 
@@ -98,7 +100,9 @@ system.mem_ranges = [AddrRange('2GB')]
 
 system.cpu = O3CPU()
 
-system.cpu.branchPred = TAGE_SC_L_8KB()
+bp_class = getattr(m5.objects, bp_type)
+globals()[bp_type] = bp_class
+system.cpu.branchPred = bp_class()
 
 system.cpu.decodeWidth = 8
 system.cpu.renameWidth = 4
@@ -108,21 +112,21 @@ system.cpu.wbWidth = 4
 system.cpu.commitWidth = 4
 system.cpu.squashWidth = 4
 
+system.cpu.numROBEntries = 64
 system.cpu.numIQEntries = 92
 system.cpu.LQEntries = 32
 system.cpu.SQEntries = 32
+
 system.cpu.numPhysIntRegs = 168
 system.cpu.numPhysFloatRegs = 168
 
-system.cpu.numROBEntries = 64
-system.cpu.numPRDQEntries = 192
-system.cpu.enablePRE = args.pre
-system.cpu.enablePREBranch = args.br
-system.cpu.enablePREEarlyRecycle = args.er
-system.cpu.enableMJ = args.mj
-
 # Increase this if IEW::instToCommit() causes overflow (default is 5).
 system.cpu.forwardComSize = 10
+
+print('params:')
+for p in args.param:
+    print('  -', repr(p))
+    exec(p)
 
 system.cpu.icache = L1ICache()
 system.cpu.dcache = L1DCache()
