@@ -1489,7 +1489,7 @@ LSQUnit::read(LSQRequest *request, ssize_t load_idx)
             // as miss for PRE loads, as LSQ cannot stall on a PRE load.
             if (load_inst->isPRE() &&
                 coverage == AddrRangeCoverage::PartialAddrRangeCoverage) {
-                MJ("LSQUnit", "pre partial coverage") << ' ' << load_inst->toString() << JG;
+                MJ("LSQUnit", "pre partial coverage") << ' ' << load_inst->toString();
                 continue;
             }
 
