@@ -341,7 +341,7 @@ Rename::squash(const InstSeqNum &squash_seq_num, ThreadID tid)
 {
     DPRINTF(Rename, "[tid:%i] [squash sn:%llu] Squashing instructions.\n",
         tid,squash_seq_num);
-    MJ("Rename", "begin squashing") << " seqNum=" << squash_seq_num << std::endl;
+    MJ("Rename", "begin squashing") << " seqNum=" << squash_seq_num;
 
     // Clear the stall signal if rename was blocked or unblocking before.
     // If it still needs to block, the blocking should happen the next
@@ -451,7 +451,7 @@ Rename::tick()
             if (!inst->readyToCommit()) {
                 break;
             }
-            MJ("Rename", "pre commit") << " " << inst->toString() << std::endl;
+            MJ("Rename", "pre commit") << " " << inst->toString();
             unsigned num_dest_regs = inst->numDestRegs();
             for (int idx = 0; idx < num_dest_regs; idx++) {
                 PhysRegIdPtr oldPhysReg = inst->prevDestIdx(idx);
@@ -483,7 +483,7 @@ Rename::tick()
                 continue;
 
             inst->setCanCommit();
-            MJ("Rename", "pre complete") << " " << inst->toString() << std::endl;
+            MJ("Rename", "pre complete") << " " << inst->toString();
 
             if (!earlyRecycle)
                 continue;
@@ -629,7 +629,7 @@ Rename::renameInsts(ThreadID tid)
                 "ROB has %i free entries.\n"
                 "IQ has %i free entries.\n",
                 tid, free_rob_entries, free_iq_entries);
-        MJ("Rename", "stop due to ") << (source == ROB ? "rob" : "iq") << std::endl;
+        MJ("Rename", "stop due to ") << (source == ROB ? "rob" : "iq");
 
         blockThisCycle = true;
 
@@ -713,7 +713,7 @@ Rename::renameInsts(ThreadID tid)
             if (calcFreeLQEntries(tid) <= 0) {
                 DPRINTF(Rename, "[tid:%i] Cannot rename due to no free LQ\n",
                         tid);
-                MJ("Rename", "stop due to lq") << std::endl;
+                MJ("Rename", "stop due to lq");
                 source = LQ;
                 incrFullStat(source);
                 break;
@@ -724,7 +724,7 @@ Rename::renameInsts(ThreadID tid)
             if (calcFreeSQEntries(tid) <= 0) {
                 DPRINTF(Rename, "[tid:%i] Cannot rename due to no free SQ\n",
                         tid);
-                MJ("Rename", "stop due to sq") << std::endl;
+                MJ("Rename", "stop due to sq");
                 source = SQ;
                 incrFullStat(source);
                 break;
@@ -759,7 +759,7 @@ Rename::renameInsts(ThreadID tid)
         // instructions that have entered rename buffer at the beginning of
         // PRE and not filtered, so we filter them here again.
         if (cpu->isInPRE() && !inst->isInSST()) {
-            MJ("Rename", "discard") << " " << inst->toString() << std::endl;
+            MJ("Rename", "discard") << " " << inst->toString();
             --insts_available;
             continue;
         }
@@ -775,7 +775,7 @@ Rename::renameInsts(ThreadID tid)
             DPRINTF(Rename,
                     "Blocking due to "
                     " lack of free physical registers to rename to.\n");
-            MJ("Rename", "stop due to rename map") << std::endl;
+            MJ("Rename", "stop due to rename map");
             blockThisCycle = true;
             insts_to_rename.push_front(inst);
             ++stats.fullRegistersEvents;
@@ -830,7 +830,7 @@ Rename::renameInsts(ThreadID tid)
             int numFree = iewSQ - inProg + iewDisp;
             MJ("Rename", "rename store") << " seqNum=" << inst->seqNum
                 << " iewSQ=" << iewSQ << " inProg=" << inProg
-                << " iewDisp=" << iewDisp << " numFree=" << numFree << std::endl;
+                << " iewDisp=" << iewDisp << " numFree=" << numFree;
         }
 
         renameSrcRegs(inst, inst->threadNumber);
@@ -1065,7 +1065,7 @@ Rename::doSquash(const InstSeqNum &squashed_seq_num, ThreadID tid)
                 "number %i (archReg: %d, newPhysReg: %d, prevPhysReg: %d).\n",
                 tid, hb_it->instSeqNum, hb_it->archReg.index(),
                 hb_it->newPhysReg->index(), hb_it->prevPhysReg->index());
-        MJ("Rename", "squash") << " seqNum=" << hb_it->instSeqNum << std::endl;
+        MJ("Rename", "squash") << " seqNum=" << hb_it->instSeqNum;
 
         // Undo the rename mapping only if it was really a change.
         // Special regs that are not really renamed (like misc regs
@@ -1138,7 +1138,7 @@ Rename::removeFromHistory(InstSeqNum inst_seq_num, ThreadID tid)
                 tid, hb_it->prevPhysReg->index(),
                 hb_it->prevPhysReg->className(),
                 hb_it->instSeqNum);
-        MJ("Rename", "free") << " seqNum=" << hb_it->instSeqNum << std::endl;
+        MJ("Rename", "free") << " seqNum=" << hb_it->instSeqNum;
 
         // Don't free special phys regs like misc and zero regs, which
         // can be recognized because the new mapping is the same as
@@ -1202,7 +1202,7 @@ Rename::renameSrcRegs(const DynInstPtr &inst, ThreadID tid)
             << " arch=" << tc->flattenRegId(src_reg).index()
             << " phys=" << renamed_reg->index()
             << " srcAddr=0x" << std::hex << renamed_reg->getSrcAddr() << std::dec
-            << " ready=" << scoreboard->getReg(renamed_reg) << std::endl;
+            << " ready=" << scoreboard->getReg(renamed_reg);
 
         if (inst->isInSST()) {
             sst->addInst(renamed_reg->getSrcAddr());
@@ -1258,7 +1258,7 @@ Rename::renameDestRegs(const DynInstPtr &inst, ThreadID tid)
         MJ("Rename", "rename dest") << " " << inst->toString()
             << " arch=" << flat_dest_regid.index()
             << " newPhys=" << rename_result.first->index()
-            << " oldPhys=" << rename_result.second->index() << std::endl;
+            << " oldPhys=" << rename_result.second->index();
 
         rename_result.first->setSrcAddr(inst->pcState().instAddr());
 
@@ -1400,26 +1400,26 @@ Rename::checkStall(ThreadID tid)
 
     if (stalls[tid].iew) {
         DPRINTF(Rename,"[tid:%i] Stall from IEW stage detected.\n", tid);
-        MJ("Rename", "block due to iew") << std::endl;
+        MJ("Rename", "block due to iew");
         ret_val = true;
     } else if (!cpu->isInPRE() && calcFreeROBEntries(tid) <= 0) {
         DPRINTF(Rename,"[tid:%i] Stall: ROB has 0 free entries.\n", tid);
-        MJ("Rename", "block due to rob") << std::endl;
+        MJ("Rename", "block due to rob");
         ret_val = true;
     } else if (cpu->isInPRE() && calcFreePRDQEntries() <= 0) {
-        MJ("Rename", "block due to prdq") << std::endl;
+        MJ("Rename", "block due to prdq");
         ret_val = true;
     } else if (calcFreeIQEntries(tid) <= 0) {
         DPRINTF(Rename,"[tid:%i] Stall: IQ has 0 free entries.\n", tid);
-        MJ("Rename", "block due to iq") << std::endl;
+        MJ("Rename", "block due to iq");
         ret_val = true;
     } else if (calcFreeLQEntries(tid) <= 0 && calcFreeSQEntries(tid) <= 0) {
         DPRINTF(Rename,"[tid:%i] Stall: LSQ has 0 free entries.\n", tid);
-        MJ("Rename", "block due to lsq") << std::endl;
+        MJ("Rename", "block due to lsq");
         ret_val = true;
     } else if (renameMap[tid]->numFreeEntries() <= 0) {
         DPRINTF(Rename,"[tid:%i] Stall: RenameMap has 0 free entries.\n", tid);
-        MJ("Rename", "block due to rename map") << std::endl;
+        MJ("Rename", "block due to rename map");
         ret_val = true;
     } else if (renameStatus[tid] == SerializeStall &&
                (!emptyROB[tid] || instsInProgress[tid])) {

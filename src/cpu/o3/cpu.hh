@@ -72,8 +72,6 @@
 #include "params/BaseO3CPU.hh"
 #include "sim/process.hh"
 
-namespace std { inline void endl() {} }
-
 namespace gem5
 {
 
@@ -82,8 +80,6 @@ namespace gem5
  */
 class MJ
 {
-    typedef std::basic_ostream<MJ, MJ>& boref;
-
   public:
     static bool enable;
     static Tick lastTick;
@@ -98,8 +94,6 @@ class MJ
         }
         return *this;
     }
-
-    void operator<<(void (*)()) {}
 
     ~MJ() {
         if (enable) {

@@ -578,7 +578,7 @@ Commit::squashAll(ThreadID tid)
 
     rob->squash(squashed_inst, tid);
     MJ("Commit", "rob squash") << " squashed_inst=" << squashed_inst 
-        << " doneSquashing=" << rob->isDoneSquashing(tid) << std::endl;
+        << " doneSquashing=" << rob->isDoneSquashing(tid);
     changedROBNumEntries[tid] = true;
 
     // Send back the sequence number of the squashed instruction.
@@ -680,21 +680,21 @@ Commit::tick()
         // this cycle.
         committedStores[tid] = false;
 
-        MJ("Commit", "tick") << " commitStatus=" << _sn[commitStatus[tid]] << std::endl;
+        MJ("Commit", "tick") << " commitStatus=" << _sn[commitStatus[tid]];
 
         if (commitStatus[tid] == ROBSquashing) {
 
             if (rob->isDoneSquashing(tid)) {
-                MJ("Commit", "done squashing") << std::endl;
+                MJ("Commit", "done squashing");
                 commitStatus[tid] = Running;
             } else {
-                MJ("Commit", "still squashing") << std::endl;
+                MJ("Commit", "still squashing");
                 DPRINTF(Commit,"[tid:%i] Still Squashing, cannot commit any"
                         " insts this cycle.\n", tid);
                 rob->doSquash(tid);
                 toIEW->commitInfo[tid].robSquashing = true;
                 wroteToTimeBuffer = true;
-                MJ("Commit", "rob doSquash") << " doneSquashing=" << rob->isDoneSquashing(tid) << std::endl;
+                MJ("Commit", "rob doSquash") << " doneSquashing=" << rob->isDoneSquashing(tid);
             }
         }
     }
@@ -755,7 +755,7 @@ Commit::tick()
             block_inst = rob->readHeadInst(0);
         }
 
-        MJ("Commit", "rob full") << " " << rob->readHeadInst(0)->toString() << std::endl;
+        MJ("Commit", "rob full") << " " << rob->readHeadInst(0)->toString();
 
         // Only in running mode could we enter PRE.
         if (commitStatus[0] == Running &&
@@ -764,7 +764,7 @@ Commit::tick()
 
             // Make sure the stalling load is still blocking.
             if (stallInst->isLoad() && !stallInst->readyToCommit()) {
-                MJ("Commit", "enter pre") << " " << stallInst->toString() << std::endl;
+                MJ("Commit", "enter pre") << " " << stallInst->toString();
                 sst->addInst(stallInst);
                 cpu->enterPRE();
             }
@@ -775,7 +775,7 @@ Commit::tick()
         // naturally, as they are younger than the instruction that caused
         // the exception. We just need to restore the RAT.
         if (commitStatus[0] == ROBSquashing && cpu->isInPRE()) {
-            MJ("Commit", "exit pre exception") << std::endl;
+            MJ("Commit", "exit pre exception");
             cpu->exitPRE();
         }
     }
@@ -820,12 +820,12 @@ Commit::tick()
             if (res == disp.end()) {
                 break;
             }
-            MJ("Commit", "exit pre skip") << " " << (*it)->toString() << std::endl;
+            MJ("Commit", "exit pre skip") << " " << (*it)->toString();
             assert(it != rob->head);
             --it;
         }
 
-        MJ("Commit", "exit pre complete") << " " << (*it)->toString() << std::endl;
+        MJ("Commit", "exit pre complete") << " " << (*it)->toString();
         iewStage->squashDueToPRE(*it);
     }
 }
@@ -868,7 +868,7 @@ Commit::handleInterrupt()
         thread[0]->noSquashFromTC = false;
 
         commitStatus[0] = TrapPending;
-        MJ("Commit", "handle interrupt") << std::endl;
+        MJ("Commit", "handle interrupt");
 
         interrupt = NoFault;
 
@@ -881,7 +881,7 @@ Commit::handleInterrupt()
                 "flight, ROB is %sempty\n",
                 canHandleInterrupts ? "not " : "",
                 cpu->instList.empty() ? "" : "not " );
-        MJ("Commit", "handle interrupt pending") << std::endl;
+        MJ("Commit", "handle interrupt pending");
     }
 }
 
@@ -932,7 +932,7 @@ Commit::commit()
         // Not sure which one takes priority.  I think if we have
         // both, that's a bad sign.
         if (trapSquash[tid]) {
-            MJ("Commit", "squash from Trap") << std::endl;
+            MJ("Commit", "squash from Trap");
             assert(!tcSquash[tid]);
             squashFromTrap(tid);
 
@@ -943,11 +943,11 @@ Commit::commit()
             if (cpu->isThreadExiting(tid))
                 cpu->scheduleThreadExitEvent(tid);
         } else if (tcSquash[tid]) {
-            MJ("Commit", "squash from TC") << std::endl;
+            MJ("Commit", "squash from TC");
             assert(commitStatus[tid] != TrapPending);
             squashFromTC(tid);
         } else if (commitStatus[tid] == SquashAfterPending) {
-            MJ("Commit", "squash from squashAfter") << std::endl;
+            MJ("Commit", "squash from squashAfter");
             // A squash from the previous cycle of the commit stage (i.e.,
             // commitInsts() called squashAfter) is pending. Squash the
             // thread now.
@@ -963,7 +963,7 @@ Commit::commit()
 
             if (fromIEW->mispredictInst[tid]) {
                 MJ("Commit", "squash due to branch mispred") << " "
-                    << fromIEW->mispredictInst[tid]->toString() << std::endl;
+                    << fromIEW->mispredictInst[tid]->toString();
                 DPRINTF(Commit,
                     "[tid:%i] Squashing due to branch mispred "
                     "PC:%#x [sn:%llu]\n",
@@ -972,18 +972,18 @@ Commit::commit()
                     fromIEW->squashedSeqNum[tid]);
             } else if (fromIEW->includeSquashInst[tid]) {
                 MJ("Commit", "squash due to order violation") << " seqNum="
-                    << fromIEW->squashedSeqNum[tid] << std::endl;
+                    << fromIEW->squashedSeqNum[tid];
                 DPRINTF(Commit,
                     "[tid:%i] Squashing due to order violation [sn:%llu]\n",
                     tid, fromIEW->squashedSeqNum[tid]);
             } else {
                 MJ("Commit", "squash due to pre") << " seqNum="
-                    << fromIEW->squashedSeqNum[tid] << std::endl;
+                    << fromIEW->squashedSeqNum[tid];
             }
 
             DPRINTF(Commit, "[tid:%i] Redirecting to PC %#x\n",
                     tid, *fromIEW->pc[tid]);
-            MJ("Commit", "redirect to") << " pc=" << *fromIEW->pc[tid] << std::endl;
+            MJ("Commit", "redirect to") << " pc=" << *fromIEW->pc[tid];
 
             commitStatus[tid] = ROBSquashing;
 
@@ -1001,7 +1001,7 @@ Commit::commit()
 
             rob->squash(squashed_inst, tid);
             MJ("Commit", "rob squash") << " squashed_inst=" << squashed_inst 
-                << " doneSquashing=" << rob->isDoneSquashing(tid) << std::endl;
+                << " doneSquashing=" << rob->isDoneSquashing(tid);
 
             changedROBNumEntries[tid] = true;
 
@@ -1080,7 +1080,7 @@ Commit::commit()
             toIEW->commitInfo[tid].usedROB = true;
             toIEW->commitInfo[tid].freeROBEntries = rob->numFreeEntries(tid);
 
-            MJ("Commit", "rob changed") << " numFreeEntries=" << toIEW->commitInfo[tid].freeROBEntries << std::endl;
+            MJ("Commit", "rob changed") << " numFreeEntries=" << toIEW->commitInfo[tid].freeROBEntries;
 
             wroteToTimeBuffer = true;
             changedROBNumEntries[tid] = false;
@@ -1167,7 +1167,7 @@ Commit::commitInsts()
         // If the head instruction is squashed, it is ready to retire
         // (be removed from the ROB) at any time.
         if (head_inst->isSquashed()) {
-            MJ("Commit", "commit squashed") << " " << head_inst->toString() << std::endl;
+            MJ("Commit", "commit squashed") << " " << head_inst->toString();
 
             DPRINTF(Commit, "Retiring squashed instruction from "
                     "ROB.\n");
@@ -1187,7 +1187,7 @@ Commit::commitInsts()
             bool commit_success = commitHead(head_inst, num_committed);
 
             if (commit_success) {
-                MJ("Commit", "commit success") << " " << head_inst->toString() << std::endl;
+                MJ("Commit", "commit success") << " " << head_inst->toString();
                 ++num_committed;
                 stats.committedInstType[tid][head_inst->opClass()]++;
                 ppCommit->notify(head_inst);
@@ -1293,7 +1293,7 @@ Commit::commitInsts()
                     onInstBoundary && cpu->checkInterrupts(0))
                     squashAfter(tid, head_inst);
             } else {
-                MJ("Commit", "commit failed") << " " << head_inst->toString() << std::endl;
+                MJ("Commit", "commit failed") << " " << head_inst->toString();
                 DPRINTF(Commit, "Unable to commit head instruction PC:%s "
                         "[tid:%i] [sn:%llu].\n",
                         head_inst->pcState(), tid ,head_inst->seqNum);
@@ -1338,10 +1338,10 @@ Commit::commitHead(const DynInstPtr &head_inst, unsigned inst_num)
                     "[tid:%i] [sn:%llu] "
                     "Waiting for all stores to writeback.\n",
                     tid, head_inst->seqNum);
-            MJ("Commit", "inst not executed waiting for store") << std::endl;
+            MJ("Commit", "inst not executed waiting for store");
             return false;
         }
-        MJ("Commit", "inst not executed") << std::endl;
+        MJ("Commit", "inst not executed");
 
         toIEW->commitInfo[tid].nonSpecSeqNum = head_inst->seqNum;
 
@@ -1396,10 +1396,10 @@ Commit::commitHead(const DynInstPtr &head_inst, unsigned inst_num)
                     "[tid:%i] [sn:%llu] "
                     "Stores outstanding, fault must wait.\n",
                     tid, head_inst->seqNum);
-            MJ("Commit", "inst fault waiting for store") << std::endl;
+            MJ("Commit", "inst fault waiting for store");
             return false;
         }
-        MJ("Commit", "inst fault") << std::endl;
+        MJ("Commit", "inst fault");
 
         head_inst->setCompleted();
 
@@ -1521,7 +1521,7 @@ Commit::getInsts()
 
             DPRINTF(Commit, "[tid:%i] [sn:%llu] Inserting PC %s into ROB.\n",
                     tid, inst->seqNum, inst->pcState());
-            MJ("Commit", "get inst") << " " << inst->toString() << std::endl;
+            MJ("Commit", "get inst") << " " << inst->toString();
 
             rob->insertInst(inst);
 
@@ -1532,7 +1532,7 @@ Commit::getInsts()
             DPRINTF(Commit, "[tid:%i] [sn:%llu] "
                     "Instruction PC %s was squashed, skipping.\n",
                     tid, inst->seqNum, inst->pcState());
-            MJ("Commit", "get inst squashed") << " " << inst->toString() << std::endl;
+            MJ("Commit", "get inst squashed") << " " << inst->toString();
         }
     }
 }
@@ -1553,9 +1553,9 @@ Commit::markCompletedInsts()
 
             // Mark the instruction as ready to commit.
             fromIEW->insts[inst_num]->setCanCommit();
-            MJ("Commit", "complete") << " " << fromIEW->insts[inst_num]->toString() << std::endl;
+            MJ("Commit", "complete") << " " << fromIEW->insts[inst_num]->toString();
         } else {
-            MJ("Commit", "complete squashed") << " " << fromIEW->insts[inst_num]->toString() << std::endl;
+            MJ("Commit", "complete squashed") << " " << fromIEW->insts[inst_num]->toString();
         }
     }
 }
@@ -1598,8 +1598,6 @@ Commit::updateComInstStats(const DynInstPtr &inst)
         }
     }
 
-    static Addr last_addr = 0;
-
     //
     //  Memory references
     //
@@ -1608,7 +1606,6 @@ Commit::updateComInstStats(const DynInstPtr &inst)
 
         if (inst->isLoad()) {
             stats.loads[tid]++;
-            Addr pc = inst->pcState().instAddr();
             if (inst->savedRequest) {
                 Cycles cycle = inst->savedRequest->accessCycle;
                 if (cycle < 5)
@@ -1619,20 +1616,6 @@ Commit::updateComInstStats(const DynInstPtr &inst)
                     stats.commitLoadL3++;
                 else
                     stats.commitLoadMem++;
-                if (0) {
-                //if (pc == 0x11fea) {
-                    Addr addr = inst->savedRequest->_addr;
-                    if (addr == last_addr + 8)
-                        std::cout << cpu->curCycle() << " 0x" << std::hex << addr
-                            << std::dec << ' ' << cycle << std::endl;
-                    else if (addr > last_addr)
-                        std::cout << cpu->curCycle() << " 0x" << std::hex << addr
-                            << std::dec << ' ' << cycle << " ++++++++++++++++++++" << std::endl;
-                    else
-                        std::cout << cpu->curCycle() << " 0x" << std::hex << addr
-                            << std::dec << ' ' << cycle << " --------------------" << std::endl;
-                    last_addr = addr;
-                }
             }
         }
 

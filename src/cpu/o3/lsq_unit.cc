@@ -99,11 +99,11 @@ LSQUnit::recvTimingResp(PacketPtr pkt)
     /* Check that the request is still alive before any further action. */
     if (!request->isReleased()) {
         MJ("LSQUnit", "recv timing resp") << " " << request->instruction()->toString()
-            << " isPRE=" << request->instruction()->isPRE() << std::endl;
+            << " isPRE=" << request->instruction()->isPRE();
         ret = request->recvTimingResp(pkt);
     } else {
         MJ("LSQUnit", "recv timing resp released") << " " << request->instruction()->toString()
-            << " isPRE=" << request->instruction()->isPRE() << std::endl;
+            << " isPRE=" << request->instruction()->isPRE();
     }
     return ret;
 }
@@ -613,12 +613,12 @@ LSQUnit::executeLoad(const DynInstPtr &inst)
         inst->completeAcc(nullptr);
         iewStage->instToCommit(inst);
         iewStage->activityThisCycle();
-        MJ("LSQUnit", "execute load complete acc") << " " << inst->toString() << std::endl;
+        MJ("LSQUnit", "execute load complete acc") << " " << inst->toString();
         return NoFault;
     }
 
     if (inst->isTranslationDelayed() && load_fault == NoFault) {
-        MJ("LSQUnit", "execute load translation delay") << " " << inst->toString() << std::endl;
+        MJ("LSQUnit", "execute load translation delay") << " " << inst->toString();
         return load_fault;
     }
 
@@ -630,7 +630,7 @@ LSQUnit::executeLoad(const DynInstPtr &inst)
         // then the cache must have been blocked. This load will be re-executed
         // when the cache gets unblocked. We will handle the fault when the
         // mem access is complete.
-        MJ("LSQUnit", "execute load translation complete") << " " << inst->toString() << std::endl;
+        MJ("LSQUnit", "execute load translation complete") << " " << inst->toString();
         return NoFault;
     }
 
@@ -648,9 +648,9 @@ LSQUnit::executeLoad(const DynInstPtr &inst)
                 (load_fault != NoFault ? "fault" : "predication"));
         if (load_fault != NoFault) {
             MJ("LSQUnit", "execute load fault") << " " << inst->toString()
-                << " fault=" << load_fault->name() << std::endl;
+                << " fault=" << load_fault->name();
         } else {
-            MJ("LSQUnit", "execute load predication") << " " << inst->toString() << std::endl;
+            MJ("LSQUnit", "execute load predication") << " " << inst->toString();
         }
         if (!(inst->hasRequest() && inst->strictlyOrdered()) ||
             inst->isAtCommit()) {
@@ -659,7 +659,7 @@ LSQUnit::executeLoad(const DynInstPtr &inst)
         iewStage->instToCommit(inst);
         iewStage->activityThisCycle();
     } else {
-        MJ("LSQUnit", "execute load mem acc predicate") << " " << inst->toString() << std::endl;
+        MJ("LSQUnit", "execute load mem acc predicate") << " " << inst->toString();
         if (inst->effAddrValid()) {
             auto it = inst->lqIt;
             ++it;
@@ -1389,7 +1389,7 @@ LSQUnit::read(LSQRequest *request, ssize_t load_idx)
         if (req->hasPaddr()) {
             s << " paddr=0x" << std::hex << req->getPaddr() << std::dec;
         }
-        MJ("LSQUnit", "read") << " " << request->instruction()->toString() << s.str() << std::endl;
+        MJ("LSQUnit", "read") << " " << request->instruction()->toString() << s.str();
     }
 
     if (request->mainReq()->isLLSC()) {

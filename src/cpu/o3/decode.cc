@@ -673,7 +673,7 @@ Decode::decodeInsts(ThreadID tid)
         // In PRE, discard instructions that are not in SST.
         bool inSST = sst->hasInst(inst);
         if (cpu->isInPRE() && !inSST) {
-            MJ("Decode", "discard") << " " << inst->toString() << std::endl;
+            MJ("Decode", "discard") << " " << inst->toString();
             --insts_available;
             continue;
         }

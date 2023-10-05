@@ -504,7 +504,7 @@ void
 IEW::squashDueToPRE(const DynInstPtr& inst)
 {
     ThreadID tid = 0;
-    MJ("IEW", "squash due to pre") << " " << inst->toString() << std::endl;
+    MJ("IEW", "squash due to pre") << " " << inst->toString();
 
     // If there has been a squash event this cycle, don't trigger a new one.
     // That event will flush the pipeline properly.
@@ -944,7 +944,7 @@ IEW::dispatchInsts(ThreadID tid)
         if (inst->isSquashed()) {
             DPRINTF(IEW, "[tid:%i] Issue: Squashed instruction encountered, "
                     "not adding to IQ.\n", tid);
-            MJ("IEW", "dispatch squashed") << " " << inst->toString() << std::endl;
+            MJ("IEW", "dispatch squashed") << " " << inst->toString();
 
             ++iewStats.dispSquashedInsts;
 
@@ -966,7 +966,7 @@ IEW::dispatchInsts(ThreadID tid)
         // Check for full conditions.
         if (instQueue.isFull(tid)) {
             DPRINTF(IEW, "[tid:%i] Issue: IQ has become full.\n", tid);
-            MJ("IEW", "dispatch iq full") << " " << inst->toString() << std::endl;
+            MJ("IEW", "dispatch iq full") << " " << inst->toString();
 
             // Call function to start blocking.
             block(tid);
@@ -987,7 +987,7 @@ IEW::dispatchInsts(ThreadID tid)
             DPRINTF(IEW, "[tid:%i] Issue: %s has become full.\n",tid,
                     inst->isLoad() ? "LQ" : "SQ");
             MJ("IEW", "dispatch ") << (inst->isLoad() ? "lq" : "sq") << " full "
-                << inst->toString() << std::endl;
+                << inst->toString();
 
             // Call function to start blocking.
             block(tid);
@@ -1014,7 +1014,7 @@ IEW::dispatchInsts(ThreadID tid)
             inst->clearHtmTransactionalState();
         }
 
-        MJ("IEW", "dispatch success") << " " << inst->toString() << std::endl;
+        MJ("IEW", "dispatch success") << " " << inst->toString();
 
         // Otherwise issue the instruction just fine.
         if (inst->isAtomic()) {
@@ -1252,9 +1252,9 @@ IEW::executeInsts()
             INST_IS(Unverifiable);
             INST_IS(Syscall);
 
-            MJ("IEW", "execute pre") << " " << inst->toString() << s.str() << std::endl;
+            MJ("IEW", "execute pre") << " " << inst->toString() << s.str();
         } else {
-            MJ("IEW", "execute") << " " << inst->toString() << std::endl;
+            MJ("IEW", "execute") << " " << inst->toString();
         }
 
         Fault fault = NoFault;
@@ -1610,7 +1610,7 @@ IEW::tick()
 
             MJ("IEW", "broadcast") << " freeIQ=" << toRename->iewInfo[tid].freeIQEntries
                 << " freeLQ=" << toRename->iewInfo[tid].freeLQEntries
-                << " freeSQ=" << toRename->iewInfo[tid].freeSQEntries << std::endl;
+                << " freeSQ=" << toRename->iewInfo[tid].freeSQEntries;
 
             wroteToTimeBuffer = true;
         }
